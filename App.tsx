@@ -304,6 +304,7 @@ const App: React.FC = () => {
       <div className="h-[45%] w-full relative z-20 bg-gray-800">
         {showPuzzle ? (
           <PuzzleGrid 
+            key={gameState.currentLevel}
             gameState={gameState} 
             onSummon={handleSummon}
             onMatch={handleMatchFound}

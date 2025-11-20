@@ -10,14 +10,14 @@ export const VICTORY_DELAY_MS = 2000;
 
 // DEBUG: Define units to spawn immediately with the Commander at game start
 export const INITIAL_ARMY_CONFIG: UnitType[] = [
-    UnitType.INFANTRY,
+    // UnitType.INFANTRY,
     UnitType.SPEAR,
-    UnitType.ARCHER,
-    UnitType.SHIELD
+    // UnitType.ARCHER,
+    // UnitType.SHIELD
 ];
 
 // Steps per level: [Level 1, Level 2, ..., Level 6]
-export const LEVEL_STEPS = [10, 13, 18, 25, 34, 45];
+export const LEVEL_STEPS = [10, 12, 15, 18, 21, 25];
 
 export const SCORING = {
   VICTORY_BONUS: 5000,
@@ -64,7 +64,7 @@ export const COMMANDERS: Record<CommanderType, CommanderProfile> = {
 // Speed: Lower is faster (ms delay between attacks)
 // moveSpeed: Units per frame (approximate percentage of screen width)
 export const UNIT_STATS: Record<UnitType, EntityStats> = {
-  [UnitType.COMMANDER]: { hp: 500, maxHp: 500, atk: 30, range: 1, def: 5, speed: 1000, moveSpeed: 0.03, scale: 1.2 },
+  [UnitType.COMMANDER]: { hp: 500, maxHp: 500, atk: 22, range: 1, def: 7, speed: 1000, moveSpeed: 0.025, scale: 1.2 },
   [UnitType.INFANTRY]: { hp: 100, maxHp: 100, atk: 15, range: 1, def: 5, speed: 800, moveSpeed: 0.05, scale: 1 }, // Fast mover
   [UnitType.ARCHER]: { hp: 60, maxHp: 60, atk: 20, range: 6, def: 1, speed: 2000, moveSpeed: 0.025, scale: 0.8 },   // Slow mover
   [UnitType.SHIELD]: { hp: 200, maxHp: 200, atk: 8, range: 1, def: 10, speed: 1500, moveSpeed: 0.02, scale: 1.1 }, // Very slow
@@ -143,7 +143,7 @@ export const GAME_LEVELS: LevelConfig[] = [
   { 
     // Level 1: Basic Melee + Range
     difficultyMult: 1.0, 
-    unitCounts: { [UnitType.INFANTRY]: 3, [UnitType.ARCHER]: 1 }, 
+    unitCounts: { [UnitType.INFANTRY]: 1, [UnitType.ARCHER]: 3 }, 
     commanderCount: 0 
   },
   { 
@@ -161,19 +161,19 @@ export const GAME_LEVELS: LevelConfig[] = [
   { 
     // Level 4: Introduce Commander
     difficultyMult: 1.15, 
-    unitCounts: { [UnitType.INFANTRY]: 9, [UnitType.ARCHER]: 5, [UnitType.SHIELD]: 3, [UnitType.SPEAR]: 1 }, 
+    unitCounts: { [UnitType.INFANTRY]: 9, [UnitType.ARCHER]: 7, [UnitType.SHIELD]: 3, [UnitType.SPEAR]: 1 }, 
     commanderCount: 0 
   },
   { 
     // Level 5: Two Commanders
-    difficultyMult: 1.25, 
-    unitCounts: { [UnitType.INFANTRY]: 12, [UnitType.ARCHER]: 7, [UnitType.SHIELD]: 5, [UnitType.SPEAR]: 2 }, 
+    difficultyMult: 1.2, 
+    unitCounts: { [UnitType.INFANTRY]: 12, [UnitType.ARCHER]: 10, [UnitType.SHIELD]: 7, [UnitType.SPEAR]: 3 }, 
     commanderCount: 1 
   },
   { 
     // Level 6: Boss Rush (4 Commanders)
-    difficultyMult: 1.4, 
-    unitCounts: { [UnitType.INFANTRY]: 15, [UnitType.ARCHER]: 10, [UnitType.SHIELD]: 8, [UnitType.SPEAR]: 5 }, 
+    difficultyMult: 1.25, 
+    unitCounts: { [UnitType.INFANTRY]: 18, [UnitType.ARCHER]: 15, [UnitType.SHIELD]: 10, [UnitType.SPEAR]: 6 }, 
     commanderCount: 2 
   }
 ];
