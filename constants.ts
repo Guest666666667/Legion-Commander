@@ -10,10 +10,10 @@ export const VICTORY_DELAY_MS = 2000;
 
 // DEBUG: Define units to spawn immediately with the Commander at game start
 export const INITIAL_ARMY_CONFIG: UnitType[] = [
-    UnitType.INFANTRY,
-    UnitType.ARCHER,
-    UnitType.SHIELD,
-    UnitType.SPEAR
+    // UnitType.INFANTRY,
+    // UnitType.ARCHER,
+    // UnitType.SHIELD,
+    // UnitType.SPEAR
 ];
 
 // Steps per level: [Level 1, Level 2, ..., Level 6]

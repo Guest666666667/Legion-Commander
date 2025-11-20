@@ -409,28 +409,33 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({ gameState, onSummon, onM
         </div>
       )}
       
-      {/* CONTROLS GROUP: Positioned to appear in BattleZone Bottom-Right */}
+      {/* Left Control: Lock Strategy */}
       {!isLocked && (
-        <div className="absolute bottom-full mb-4 right-2 flex gap-2 z-40">
+        <div className="absolute left-2 top-1/2 -translate-y-1/2 z-30">
             <button
                 onClick={() => setStrategyLocked(!strategyLocked)}
                 className={`
-                    w-10 h-10 rounded-md shadow-lg flex flex-col items-center justify-center border-2 transition-all
+                    w-12 h-12 rounded-full shadow-xl flex items-center justify-center border-2 transition-all
                     ${strategyLocked ? 'bg-red-900 border-red-500 text-white' : 'bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700'}
                 `}
             >
-                {strategyLocked ? <Lock size={16} className="text-red-200" /> : <Unlock size={16} />}
+                {strategyLocked ? <Lock size={20} className="text-red-200" /> : <Unlock size={20} />}
             </button>
+        </div>
+      )}
 
+      {/* Right Control: Refresh */}
+      {!isLocked && (
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 z-30">
             <button 
                 onClick={clickReshuffleBtn}
                 disabled={!canAffordReshuffle}
                 className={`
-                    w-10 h-10 rounded-md shadow-lg flex flex-col items-center justify-center border-2 transition-all
+                    w-12 h-12 rounded-full shadow-xl flex items-center justify-center border-2 transition-all
                     ${!canAffordReshuffle ? 'bg-slate-800 border-slate-600 opacity-50 cursor-not-allowed' : 'bg-yellow-700 border-yellow-400 text-white hover:bg-yellow-600'}
                 `}
             >
-                <RefreshCw size={16} />
+                <RefreshCw size={20} />
             </button>
         </div>
       )}
