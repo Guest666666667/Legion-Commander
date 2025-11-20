@@ -269,92 +269,92 @@ export const BattleZone: React.FC<BattleZoneProps> = (props) => {
                 const baseVal = base * multiplier;
                 const diff = val - baseVal;
                 
-                // For float, fix to 1 decimal. For int, round.
                 const display = isFloat ? val.toFixed(1) : Math.round(val);
                 const displayDiff = isFloat ? diff.toFixed(1) : Math.round(diff);
                 
-                // Use logic: if value > baseValue, it is improved (green).
-                // Note: For atkSpeed, we pass in 1000/speed, so higher is better (more APS).
                 const hasBonus = diff > (isFloat ? 0.05 : 0);
 
                 return (
-                    <div className="bg-slate-900/60 rounded-lg p-2 flex flex-col items-center justify-center border border-slate-700/50 relative h-14">
-                        <div className="text-slate-400 mb-0.5 scale-90">{icon}</div>
-                        <span className={`font-mono font-bold text-lg leading-none ${hasBonus ? 'text-green-400' : 'text-white'}`}>{display}</span>
+                    <div className="bg-slate-900/60 rounded-lg p-1.5 flex flex-col items-center justify-center border border-slate-700/50 relative h-12">
+                        <div className="text-slate-400 mb-0.5 scale-75">{icon}</div>
+                        <span className={`font-mono font-bold text-base leading-none ${hasBonus ? 'text-green-400' : 'text-white'}`}>{display}</span>
                         {hasBonus && (
-                            <span className="text-[9px] font-bold text-green-400 absolute top-1 right-1">+{displayDiff}</span>
+                            <span className="text-[8px] font-bold text-green-400 absolute top-0.5 right-1">+{displayDiff}</span>
                         )}
                     </div>
                 )
            }
 
            return (
-             <div className="absolute inset-0 z-[60] flex items-center justify-center p-8" onClick={handleCloseModal}>
-               <div className="bg-slate-800 border-2 border-slate-600 rounded-xl p-5 shadow-2xl max-w-sm w-full relative animate-fade-in" onClick={(e) => e.stopPropagation()}>
-                   
-                   {/* Compact Header */}
-                   <div className="flex justify-between items-start mb-6">
-                       <div className="flex items-center gap-4">
-                           <div className={`w-14 h-14 rounded-lg p-2 border-2 shadow-inner ${selectedEntity.team === 'PLAYER' ? 'bg-green-900/50 border-green-500' : 'bg-red-900/50 border-red-500'}`}>
-                               <UnitIcon type={selectedEntity.type} isUpgraded={props.upgrades?.includes(selectedEntity.type) && selectedEntity.team === 'PLAYER'} />
-                           </div>
-                           <div>
-                               <h3 className={`font-black text-lg uppercase tracking-wide leading-tight ${selectedEntity.team === 'PLAYER' ? 'text-green-400' : 'text-red-400'}`}>
-                                   {COMMANDERS[selectedEntity.type] ? COMMANDERS[selectedEntity.type].name : selectedEntity.type}
-                               </h3>
-                               
-                               <div className="flex items-center gap-2 text-base font-mono font-bold text-slate-200 mt-0.5">
-                                   <Heart size={14} className="text-red-500 fill-red-500" />
-                                   <span>
-                                       <span className={selectedEntity.hp < effectiveStats.maxHp ? "text-red-400" : "text-white"}>
-                                           {Math.ceil(selectedEntity.hp)}
-                                       </span>
-                                       <span className="text-slate-500 text-xs">/{effectiveStats.maxHp}</span>
-                                   </span>
-                               </div>
-                           </div>
-                       </div>
-                       
-                       <div className="flex flex-col items-end gap-1">
-                            <button onClick={handleCloseModal} className="text-slate-400 hover:text-white p-1 bg-slate-900 rounded-full hover:bg-slate-700 transition-colors">
-                                <X size={18} />
-                            </button>
-                       </div>
-                   </div>
-
-                   {/* Compact Stats Grid */}
-                   <div className="grid grid-cols-5 gap-2 mb-4">
-                        {renderStatBox(<Sword size={18}/>, effectiveStats.atk, selectedEntity.atk, false)}
-                        {renderStatBox(<Shield size={18}/>, effectiveStats.def, selectedEntity.def, false)}
-                        {renderStatBox(<Target size={18}/>, effectiveStats.range, selectedEntity.range, true)}
-                        {renderStatBox(<Timer size={18}/>, 1000 / effectiveStats.atkSpeed, 1000 / selectedEntity.atkSpeed, true)}
-                        {renderStatBox(<Footprints size={18}/>, effectiveStats.moveSpeed, selectedEntity.moveSpeed, true, 100)} 
-                   </div>
-                   
-                   {/* Buffs Section */}
-                   {selectedEntity.buffs.length > 0 && (
-                       <div className="bg-slate-900/50 px-3 py-2 rounded border border-slate-700/50">
-                           <div className="flex items-center gap-2 text-slate-400 text-xs font-bold mb-2 uppercase tracking-wider"><Zap size={12} /> Active Effects</div>
-                           <div className="w-full space-y-2">
-                               {selectedEntity.buffs.map(b => {
-                                   const conf = BUFF_CONFIG[b];
-                                   return (
-                                       <div key={b} className="text-xs bg-black/30 px-2 py-1.5 rounded flex flex-col">
-                                           <div className="flex items-center gap-1 text-yellow-400 font-bold">
-                                               <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 inline-block"></span>
-                                               {conf?.label || b}
-                                           </div>
-                                           {conf?.description && (
-                                               <div className="text-slate-400 text-[10px] leading-tight mt-0.5 pl-3 opacity-80">
-                                                   {conf.description}
-                                               </div>
-                                           )}
+             <div className="fixed inset-0 z-[9999] flex justify-center bg-black/60 backdrop-blur-[1px]" onClick={handleCloseModal}>
+               <div className="w-full max-w-lg h-full flex flex-col pointer-events-none">
+                   <div className="h-[10%]" /> {/* Map Spacer */}
+                   <div className="flex-1 flex items-center justify-center p-4 relative pointer-events-auto">
+                       <div className="bg-slate-800 border-2 border-slate-600 rounded-xl p-4 shadow-2xl w-full max-w-[300px] relative animate-fade-in" onClick={(e) => e.stopPropagation()}>
+                           
+                           {/* Compact Header */}
+                           <div className="flex justify-between items-start mb-3">
+                               <div className="flex items-center gap-3">
+                                   <div className={`w-12 h-12 rounded-lg p-1.5 border-2 shadow-inner ${selectedEntity.team === 'PLAYER' ? 'bg-green-900/50 border-green-500' : 'bg-red-900/50 border-red-500'}`}>
+                                       <UnitIcon type={selectedEntity.type} isUpgraded={props.upgrades?.includes(selectedEntity.type) && selectedEntity.team === 'PLAYER'} />
+                                   </div>
+                                   <div>
+                                       <h3 className={`font-black text-base uppercase tracking-wide leading-none mb-1 ${selectedEntity.team === 'PLAYER' ? 'text-green-400' : 'text-red-400'}`}>
+                                           {COMMANDERS[selectedEntity.type] ? COMMANDERS[selectedEntity.type].name : selectedEntity.type}
+                                       </h3>
+                                       
+                                       <div className="flex items-center gap-1.5 text-sm font-mono font-bold text-slate-200">
+                                           <Heart size={12} className="text-red-500 fill-red-500" />
+                                           <span>
+                                               <span className={selectedEntity.hp < effectiveStats.maxHp ? "text-red-400" : "text-white"}>
+                                                   {Math.ceil(selectedEntity.hp)}
+                                               </span>
+                                               <span className="text-slate-500 text-[10px]">/{effectiveStats.maxHp}</span>
+                                           </span>
                                        </div>
-                                   );
-                               })}
+                                   </div>
+                               </div>
+                               
+                               <button onClick={handleCloseModal} className="text-slate-400 hover:text-white p-1 bg-slate-900 rounded-full hover:bg-slate-700 transition-colors">
+                                   <X size={16} />
+                               </button>
                            </div>
+
+                           {/* Compact Stats Grid */}
+                           <div className="grid grid-cols-5 gap-1.5 mb-3">
+                                {renderStatBox(<Sword size={14}/>, effectiveStats.atk, selectedEntity.atk, false)}
+                                {renderStatBox(<Shield size={14}/>, effectiveStats.def, selectedEntity.def, false)}
+                                {renderStatBox(<Target size={14}/>, effectiveStats.range, selectedEntity.range, true)}
+                                {renderStatBox(<Timer size={14}/>, 1000 / effectiveStats.atkSpeed, 1000 / selectedEntity.atkSpeed, true)}
+                                {renderStatBox(<Footprints size={14}/>, effectiveStats.moveSpeed, selectedEntity.moveSpeed, true, 100)} 
+                           </div>
+                           
+                           {/* Buffs Section - Simplified */}
+                           {selectedEntity.buffs.length > 0 && (
+                               <div className="bg-slate-900/50 px-2 py-2 rounded border border-slate-700/50">
+                                   <div className="w-full space-y-1">
+                                       {selectedEntity.buffs.map(b => {
+                                           const conf = BUFF_CONFIG[b];
+                                           return (
+                                               <div key={b} className="text-[10px] bg-black/30 px-2 py-1 rounded flex flex-col">
+                                                   <div className="flex items-center gap-1.5 text-yellow-400 font-bold">
+                                                       <Zap size={10} />
+                                                       <span>{conf?.label || b}</span>
+                                                   </div>
+                                                   {conf?.description && (
+                                                       <div className="text-slate-400 text-[9px] leading-tight mt-0.5 pl-4 opacity-80">
+                                                           {conf.description}
+                                                       </div>
+                                                   )}
+                                               </div>
+                                           );
+                                       })}
+                                   </div>
+                               </div>
+                           )}
                        </div>
-                   )}
+                   </div>
+                   <div className="h-[45%]" /> {/* Puzzle Spacer */}
                </div>
              </div>
            );

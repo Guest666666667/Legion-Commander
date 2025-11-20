@@ -32,11 +32,11 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart }) => {
   return (
     <div className="h-full w-full flex flex-col items-center bg-slate-900 p-6 text-center relative overflow-hidden">
       {/* Title */}
-      <div className="mt-4 mb-6 z-20">
-        <h1 className="text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-red-600 mb-2">
-            LEGION
+      <div className="mt-8 mb-8 z-20">
+        <h1 className="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-red-600 mb-0 leading-tight drop-shadow-2xl">
+            BLOCK
         </h1>
-        <h2 className="text-2xl font-bold text-white tracking-widest">COMMANDER</h2>
+        <h2 className="text-3xl font-bold text-white tracking-[0.2em] drop-shadow-md">COMMANDER</h2>
       </div>
 
       {/* Carousel Container */}
