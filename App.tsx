@@ -13,6 +13,7 @@ import { MapZone } from './components/MapZone';
 import { BattleZone } from './components/BattleZone';
 import { PuzzleGrid } from './components/PuzzleGrid';
 import { RewardScreen } from './components/RewardScreen';
+import { GameOverScreen } from './components/GameOverScreen';
 
 const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>({
@@ -33,7 +34,8 @@ const App: React.FC = () => {
     rewardsRemaining: 0,
     upgrades: [],
     currentRewardIds: [],
-    rewardsHistory: {}
+    rewardsHistory: {},
+    scoreStats: { matches3: 0, matches4: 0, matches5: 0, reshuffles: 0, won: false, kills: {} }
   });
 
   // --- Actions ---
@@ -56,7 +58,8 @@ const App: React.FC = () => {
       rewardsRemaining: 0,
       upgrades: [],
       currentRewardIds: [],
-      rewardsHistory: {}
+      rewardsHistory: {},
+      scoreStats: { matches3: 0, matches4: 0, matches5: 0, reshuffles: 0, won: false, kills: {} }
     }));
   };
 
@@ -67,13 +70,24 @@ const App: React.FC = () => {
     }));
   };
 
+  const handleMatchFound = (count: number) => {
+    setGameState(prev => {
+      const stats = { ...prev.scoreStats };
+      if (count === 3) stats.matches3++;
+      else if (count === 4) stats.matches4++;
+      else if (count >= 5) stats.matches5++;
+      return { ...prev, scoreStats: stats };
+    });
+  };
+
   const handleReshufflePay = (cost: number) => {
     setGameState(prev => ({
       ...prev,
-      // Note: We do NOT decrement stepsRemaining here. 
-      // Step logic is handled locally in PuzzleGrid to avoid race conditions/sync issues 
-      // between rapid moves and parent state updates.
-      reshufflesUsed: prev.reshufflesUsed + 1
+      reshufflesUsed: prev.reshufflesUsed + 1,
+      scoreStats: {
+          ...prev.scoreStats,
+          reshuffles: prev.scoreStats.reshuffles + 1
+      }
     }));
   };
 
@@ -91,7 +105,6 @@ const App: React.FC = () => {
       const history = currentState.rewardsHistory || {};
 
       // EXPAND (Max 2 times allowed total)
-      // Actually check if grid size is maxed out as well
       if (currentState.gridSize < MAX_GRID_SIZE && (history['EXPAND'] || 0) < 2) {
           pool.push('EXPAND');
       }
@@ -122,17 +135,32 @@ const App: React.FC = () => {
           [pool[i], pool[j]] = [pool[j], pool[i]];
       }
       
-      // If less than 3, just return what we have, fill with blanks handled by UI if needed (or Scavenger fallback)
       return pool.slice(0, 3);
   }
 
-  const handleBattleEnd = (victory: boolean, survivingUnits: UnitType[] = []) => {
+  const handleBattleEnd = (victory: boolean, survivingUnits: UnitType[] = [], kills: Record<string, number> = {}) => {
+    // Merge kills
+    const mergedKills = { ...gameState.scoreStats.kills };
+    Object.entries(kills).forEach(([type, count]) => {
+        mergedKills[type] = (mergedKills[type] || 0) + count;
+    });
+    
+    const nextScoreStats = {
+        ...gameState.scoreStats,
+        kills: mergedKills
+    };
+
     if (victory) {
       if (gameState.currentLevel >= gameState.maxLevels) {
-        alert("CAMPAIGN VICTORY! Thanks for playing.");
-        setGameState(prev => ({ ...prev, phase: Phase.MENU }));
+        // Campaign Victory
+        setGameState(prev => ({
+            ...prev,
+            phase: Phase.GAME_OVER,
+            survivors: survivingUnits, // Store final army for score calculation
+            scoreStats: { ...nextScoreStats, won: true }
+        }));
       } else {
-        // Generate random options for this reward phase
+        // Level Victory -> Rewards
         const rewardOptions = generateRewardOptions(gameState);
 
         setGameState(prev => ({ 
@@ -140,12 +168,17 @@ const App: React.FC = () => {
           phase: Phase.REWARD,
           survivors: survivingUnits, // Store survivors for next level
           rewardsRemaining: prev.maxRewardSelections,
-          currentRewardIds: rewardOptions
+          currentRewardIds: rewardOptions,
+          scoreStats: nextScoreStats
         }));
       }
     } else {
-      alert("DEFEAT! Your legion has fallen.");
-      setGameState(prev => ({ ...prev, phase: Phase.MENU }));
+      // Defeat
+      setGameState(prev => ({
+        ...prev,
+        phase: Phase.GAME_OVER,
+        scoreStats: { ...nextScoreStats, won: false }
+      }));
     }
   };
 
@@ -201,6 +234,30 @@ const App: React.FC = () => {
       };
     });
   };
+  
+  const restartGame = () => {
+      setGameState({
+        phase: Phase.MENU,
+        gridSize: INITIAL_GRID_SIZE,
+        currentLevel: 1,
+        maxLevels: LEVELS_PER_RUN,
+        commanderType: CommanderType.CENTURION,
+        stepsRemaining: LEVEL_STEPS[0],
+        reshufflesUsed: 0,
+        summonQueue: [],
+        playerHp: 100,
+        inventory: [],
+        survivors: [],
+        scavengerLevel: 0,
+        commanderMoveRange: 1,
+        maxRewardSelections: 1,
+        rewardsRemaining: 0,
+        upgrades: [],
+        currentRewardIds: [],
+        rewardsHistory: {},
+        scoreStats: { matches3: 0, matches4: 0, matches5: 0, reshuffles: 0, won: false, kills: {} }
+      });
+  };
 
   // --- Render Helpers ---
 
@@ -208,7 +265,7 @@ const App: React.FC = () => {
     return <StartScreen onStart={startGame} />;
   }
 
-  const showPuzzle = gameState.phase === Phase.PUZZLE || gameState.phase === Phase.BATTLE || gameState.phase === Phase.REWARD;
+  const showPuzzle = gameState.phase === Phase.PUZZLE || gameState.phase === Phase.BATTLE || gameState.phase === Phase.REWARD || gameState.phase === Phase.GAME_OVER;
   const isPuzzleLocked = gameState.phase !== Phase.PUZZLE;
 
   return (
@@ -227,6 +284,7 @@ const App: React.FC = () => {
           commanderType={gameState.commanderType}
           onBattleEnd={handleBattleEnd}
           upgrades={gameState.upgrades}
+          rewardsHistory={gameState.rewardsHistory}
         />
       </div>
 
@@ -236,6 +294,7 @@ const App: React.FC = () => {
           <PuzzleGrid 
             gameState={gameState} 
             onSummon={handleSummon}
+            onMatch={handleMatchFound}
             onBattleStart={handleBattleStart}
             onReshufflePay={handleReshufflePay}
             isLocked={isPuzzleLocked}
@@ -257,6 +316,14 @@ const App: React.FC = () => {
           rewardsHistory={gameState.rewardsHistory}
           survivors={gameState.survivors}
         />
+      )}
+      
+      {gameState.phase === Phase.GAME_OVER && (
+          <GameOverScreen 
+            stats={gameState.scoreStats}
+            finalArmy={gameState.survivors}
+            onRestart={restartGame}
+          />
       )}
     </div>
   );

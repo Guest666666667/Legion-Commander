@@ -7,12 +7,13 @@ import { RefreshCw, Lock, Unlock } from 'lucide-react';
 interface PuzzleGridProps {
   gameState: GameState;
   onSummon: (units: UnitType[]) => void;
+  onMatch: (count: number) => void;
   onBattleStart: (finalGrid: GridItem[]) => void;
   onReshufflePay: (cost: number) => void;
   isLocked?: boolean;
 }
 
-export const PuzzleGrid: React.FC<PuzzleGridProps> = ({ gameState, onSummon, onBattleStart, onReshufflePay, isLocked = false }) => {
+export const PuzzleGrid: React.FC<PuzzleGridProps> = ({ gameState, onSummon, onMatch, onBattleStart, onReshufflePay, isLocked = false }) => {
   const [grid, setGrid] = useState<GridItem[]>([]);
   const [steps, setSteps] = useState(gameState.stepsRemaining);
   const [animating, setAnimating] = useState(false);
@@ -280,9 +281,13 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({ gameState, onSummon, onB
         if (buffer.length >= 3) {
             const type = buffer[0].type;
             
-            // CRITICAL FIX: If type is Obstacle and Scavenger is NOT active (level 0), ignore entirely.
             if (type === UnitType.OBSTACLE && gameState.scavengerLevel === 0) {
                 return;
+            }
+            
+            // Report the match for scoring
+            if (isSoldier(type) || type === UnitType.OBSTACLE) {
+                onMatch(buffer.length);
             }
 
             buffer.forEach(m => matchedIds.add(m.id));
@@ -465,7 +470,6 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({ gameState, onSummon, onB
                 const dr = Math.abs(item.row - commander.row);
                 const dc = Math.abs(item.col - commander.col);
                 const range = gameState.commanderMoveRange || 1;
-                // Use Manhattan Distance for range check
                 const dist = dr + dc;
                 isValidTarget = (dist > 0 && dist <= range);
              }

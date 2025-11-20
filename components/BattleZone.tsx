@@ -1,20 +1,21 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { BattleEntity, Phase, UnitType, Projectile, VisualEffect, CommanderType } from '../types';
-import { UNIT_STATS, GAME_LEVELS, DEFAULT_SPEED_MULTIPLIER, UNIT_UPGRADES, VICTORY_DELAY_MS } from '../constants';
+import { UNIT_STATS, GAME_LEVELS, DEFAULT_SPEED_MULTIPLIER, UNIT_UPGRADES, VICTORY_DELAY_MS, REWARD_DEFINITIONS } from '../constants';
 import { UnitIcon } from './UnitIcon';
-import { Play, MoveRight, Sparkles, Pause, X, Shield, Sword, Heart, Crosshair } from 'lucide-react';
+import { Play, MoveRight, Sparkles, Pause, X, Shield, Sword, Heart, Crosshair, Flag } from 'lucide-react';
 
 interface BattleZoneProps {
   allies: UnitType[];
   level: number;
   phase: Phase;
   commanderType: CommanderType;
-  onBattleEnd: (victory: boolean, survivors?: UnitType[]) => void;
+  onBattleEnd: (victory: boolean, survivors?: UnitType[], kills?: Record<string, number>) => void;
   upgrades?: UnitType[];
+  rewardsHistory: Record<string, number>;
 }
 
-export const BattleZone: React.FC<BattleZoneProps> = ({ allies, level, phase, commanderType, onBattleEnd, upgrades = [] }) => {
+export const BattleZone: React.FC<BattleZoneProps> = ({ allies, level, phase, commanderType, onBattleEnd, upgrades = [], rewardsHistory = {} }) => {
   const [entities, setEntities] = useState<BattleEntity[]>([]);
   const [projectiles, setProjectiles] = useState<Projectile[]>([]);
   const [effects, setEffects] = useState<VisualEffect[]>([]);
@@ -26,6 +27,10 @@ export const BattleZone: React.FC<BattleZoneProps> = ({ allies, level, phase, co
   const lastTimeRef = useRef<number>(0);
   const alliesProcessedCount = useRef<number>(0);
   const isBattleEndingRef = useRef(false);
+  
+  // Track kills locally for this battle
+  const killsRef = useRef<Record<string, number>>({});
+  const processedDeathsRef = useRef<Set<string>>(new Set());
 
   // --- Helpers ---
 
@@ -104,6 +109,8 @@ export const BattleZone: React.FC<BattleZoneProps> = ({ allies, level, phase, co
     alliesProcessedCount.current = 0;
     isBattleEndingRef.current = false;
     setIsPaused(false);
+    killsRef.current = {};
+    processedDeathsRef.current = new Set();
   }, [level]);
 
   // 2. Handle Ally Spawning
@@ -167,6 +174,14 @@ export const BattleZone: React.FC<BattleZoneProps> = ({ allies, level, phase, co
 
   const updateGameLogic = (time: number, delta: number) => {
     setEntities(prevEnts => {
+      // Check for deaths from previous frame logic before filtering
+      prevEnts.forEach(e => {
+          if (e.hp <= 0 && e.team === 'ENEMY' && !processedDeathsRef.current.has(e.id)) {
+              processedDeathsRef.current.add(e.id);
+              killsRef.current[e.type] = (killsRef.current[e.type] || 0) + 1;
+          }
+      });
+
       let activeEnts = prevEnts.filter(e => e.hp > 0);
       
       const players = activeEnts.filter(e => e.team === 'PLAYER');
@@ -176,19 +191,19 @@ export const BattleZone: React.FC<BattleZoneProps> = ({ allies, level, phase, co
       if (!isBattleEndingRef.current) {
         if (players.length === 0 && enemies.length > 0) {
             isBattleEndingRef.current = true;
-            onBattleEnd(false);
+            onBattleEnd(false, [], killsRef.current);
         } else if (enemies.length === 0 && players.length > 0) {
             isBattleEndingRef.current = true;
             setTimeout(() => {
                 const survivors = players
                     .filter(p => p.type !== UnitType.COMMANDER)
                     .map(p => p.type);
-                onBattleEnd(true, survivors);
+                onBattleEnd(true, survivors, killsRef.current);
             }, VICTORY_DELAY_MS);
         } else if (players.length === 0 && enemies.length === 0 && prevEnts.length > 0) {
-            // Draw/Wipe (treat as defeat or check logic)
+            // Draw/Wipe
             isBattleEndingRef.current = true;
-            onBattleEnd(false);
+            onBattleEnd(false, [], killsRef.current);
         }
       }
 
@@ -347,6 +362,12 @@ export const BattleZone: React.FC<BattleZoneProps> = ({ allies, level, phase, co
     });
   };
   
+  const handleSurrender = () => {
+      if (isBattleEndingRef.current) return;
+      isBattleEndingRef.current = true;
+      onBattleEnd(false, [], killsRef.current);
+  };
+  
   const handleEntityClick = (entity: BattleEntity) => {
       if (!isPaused) setIsPaused(true);
       setSelectedEntity(entity);
@@ -362,6 +383,17 @@ export const BattleZone: React.FC<BattleZoneProps> = ({ allies, level, phase, co
 
   return (
     <div className="relative w-full h-full bg-slate-900 overflow-hidden">
+       <style>{`
+         @keyframes spawn-unit {
+            0% { opacity: 0; transform: scale(0); }
+            80% { transform: scale(1.1); }
+            100% { opacity: 1; transform: scale(1); }
+         }
+         .animate-spawn-unit {
+            animation: spawn-unit 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+         }
+       `}</style>
+
        <div className={`absolute inset-0 transition-all duration-500 ${isPaused ? 'grayscale brightness-75' : ''}`}>
            <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'linear-gradient(#444 1px, transparent 1px), linear-gradient(90deg, #444 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
            <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-white/10 border-l border-dashed border-white/20"></div>
@@ -384,17 +416,10 @@ export const BattleZone: React.FC<BattleZoneProps> = ({ allies, level, phase, co
              let filterStyle = '';
              
              if (ent.team === 'PLAYER') {
-                 // Player: Fade to White/Pale
-                 // Brightness increases (1.0 -> 2.2)
-                 // Saturation decreases (1.0 -> 0.3)
-                 // Result: Fades from normal color to a pale, bright version
                  const b = 1 + (1 - healthRatio) * 1.2;
                  const s = 0.3 + (0.7 * healthRatio);
                  filterStyle = `brightness(${b}) saturate(${s})`;
              } else {
-                 // Enemy: Fade to Black/Dark
-                 // Starts Darker (0.7) -> Ends Very Dark (0.25)
-                 // Result: Darker version of base color, fading to black
                  const b = 0.25 + (healthRatio * 0.45);
                  filterStyle = `brightness(${b})`;
              }
@@ -414,10 +439,13 @@ export const BattleZone: React.FC<BattleZoneProps> = ({ allies, level, phase, co
                     filter: filterStyle,
                 }}
                >
-                 {/* Icon Container - Flippable */}
-                 <div className={`w-full h-full transition-all duration-75 ${isHit ? 'brightness-200 sepia saturate-200 hue-rotate-[-50deg]' : ''}`}
-                      style={{ transform: `scale(${ent.team === 'ENEMY' ? '-1, 1' : '1, 1'})` }}>
-                    <UnitIcon type={ent.type} isUpgraded={isUpgraded} />
+                 {/* New Animation Wrapper */}
+                 <div className="w-full h-full animate-spawn-unit">
+                    {/* Icon Container - Flippable */}
+                    <div className={`w-full h-full transition-all duration-75 ${isHit ? 'brightness-200 sepia saturate-200 hue-rotate-[-50deg]' : ''}`}
+                        style={{ transform: `scale(${ent.team === 'ENEMY' ? '-1, 1' : '1, 1'})` }}>
+                        <UnitIcon type={ent.type} isUpgraded={isUpgraded} />
+                    </div>
                  </div>
                </div>
              );
@@ -431,12 +459,35 @@ export const BattleZone: React.FC<BattleZoneProps> = ({ allies, level, phase, co
        <div className="absolute top-2 left-2 text-[10px] text-green-400/70 font-mono pointer-events-none border border-green-900/50 bg-black/20 px-2 py-1 rounded z-50">ALLIES: {aliveAllies}</div>
        <div className="absolute top-2 right-2 text-[10px] text-red-400/70 font-mono pointer-events-none border border-red-900/50 bg-black/20 px-2 py-1 rounded z-50">ENEMIES: {aliveEnemies}</div>
 
+       {/* Reward Trackers */}
+       <div className="absolute bottom-2 left-2 flex gap-2 z-40">
+            {Object.entries(rewardsHistory).map(([id, count]) => {
+                const def = REWARD_DEFINITIONS[id];
+                if (!def) return null;
+                // Exclude upgrades from this specific bar if desired, but listing major buffs:
+                if (id.startsWith('UPGRADE_')) return null; 
+                return (
+                    <div key={id} className="relative w-8 h-8 bg-slate-800/80 border border-slate-600 rounded p-1.5 text-yellow-500 flex items-center justify-center shadow-lg backdrop-blur-sm">
+                        <def.icon size={20} />
+                        {count > 1 && (
+                            <div className="absolute -bottom-1 -right-1 bg-red-600 text-white text-[9px] font-bold w-3.5 h-3.5 rounded-full flex items-center justify-center border border-slate-900 shadow-sm">
+                                {count}
+                            </div>
+                        )}
+                    </div>
+                )
+            })}
+       </div>
+
        <div className="absolute top-2 left-1/2 -translate-x-1/2 flex gap-2 z-50">
            <button onClick={togglePause} className={`bg-slate-800/80 hover:bg-slate-700 text-white border border-slate-600 rounded-md px-3 py-1 flex items-center justify-center transition-all shadow-lg active:scale-95 w-10 ${isPaused ? 'animate-pulse ring-2 ring-yellow-500' : ''}`}>
              {isPaused ? <Play size={14} /> : <Pause size={14} />}
            </button>
            <button onClick={toggleSpeed} className="bg-slate-800/80 hover:bg-slate-700 text-yellow-400 border border-slate-600 rounded-md px-3 py-1 flex items-center gap-0.5 transition-all shadow-lg active:scale-95 min-w-[40px] justify-center">
              {Array.from({ length: speedMultiplier }).map((_, i) => (<Play key={i} size={12} fill="currentColor" className={i > 0 ? "-ml-1.5" : ""} />))}
+           </button>
+           <button onClick={handleSurrender} className="bg-red-900/80 hover:bg-red-700 text-white border border-red-700 rounded-md px-3 py-1 flex items-center justify-center transition-all shadow-lg active:scale-95 w-10">
+             <Flag size={14} />
            </button>
        </div>
 

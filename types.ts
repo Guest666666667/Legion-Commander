@@ -15,9 +15,7 @@ export enum UnitType {
   ARCHER = 'ARCHER',     // Basic Range
   SHIELD = 'SHIELD',     // High Def (Unlock n=4)
   SPEAR = 'SPEAR',       // High Reach (Unlock n=5)
-  OBSTACLE = 'OBSTACLE',
-  ENEMY_MELEE = 'ENEMY_MELEE',
-  ENEMY_RANGE = 'ENEMY_RANGE'
+  OBSTACLE = 'OBSTACLE'
 }
 
 export interface EntityStats {
@@ -83,6 +81,15 @@ export interface CommanderProfile {
   skillDesc: string;
 }
 
+export interface ScoreStats {
+  matches3: number;
+  matches4: number;
+  matches5: number; // 5 or more
+  reshuffles: number;
+  won: boolean;
+  kills: Record<string, number>; // UnitType -> count
+}
+
 export interface GameState {
   phase: Phase;
   gridSize: number; // n
@@ -106,4 +113,7 @@ export interface GameState {
   // Reward Randomization
   currentRewardIds: string[];
   rewardsHistory: Record<string, number>; // Tracks how many times a reward was picked
+  
+  // Scoring
+  scoreStats: ScoreStats;
 }

@@ -22,8 +22,6 @@ export const UnitIcon: React.FC<UnitIconProps> = ({ type, size = 20, className =
     case UnitType.SPEAR: Icon = isUpgraded ? Tent : Triangle; break; 
     case UnitType.COMMANDER: Icon = Hexagon; break;
     case UnitType.OBSTACLE: Icon = CircleOff; break;
-    case UnitType.ENEMY_MELEE: Icon = Sword; break;
-    case UnitType.ENEMY_RANGE: Icon = Target; break;
   }
 
   return (
