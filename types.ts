@@ -101,4 +101,8 @@ export interface GameState {
   maxRewardSelections: number; // Default 1. Greed increases this.
   rewardsRemaining: number; // Tracks picks left in current victory phase
   upgrades: UnitType[]; // List of unit types that have been upgraded
+  
+  // Reward Randomization
+  currentRewardIds: string[];
+  rewardsHistory: Record<string, number>; // Tracks how many times a reward was picked
 }

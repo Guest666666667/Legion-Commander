@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { GameState, GridItem, UnitType, CommanderType } from '../types';
 import { UnitIcon } from './UnitIcon';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, Lock, Unlock } from 'lucide-react';
 
 interface PuzzleGridProps {
   gameState: GameState;
@@ -18,6 +18,7 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({ gameState, onSummon, onB
   const [animating, setAnimating] = useState(false);
   const [matchedIds, setMatchedIds] = useState<Set<string>>(new Set());
   const [showReshuffleModal, setShowReshuffleModal] = useState(false);
+  const [strategyLocked, setStrategyLocked] = useState(false); // Strategy Mode
 
   useEffect(() => {
     setSteps(gameState.stepsRemaining);
@@ -127,8 +128,8 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({ gameState, onSummon, onB
       const used = gameState.reshufflesUsed;
       const cost = used === 0 ? 0 : used;
       
-      // Double check logic
-      if (steps < cost) return;
+      // Explicitly check against GameState to avoid sync issues
+      if (gameState.stepsRemaining < cost) return;
 
       // Perform Reset
       const newGrid = shuffleSoldiers(grid, true); 
@@ -136,8 +137,11 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({ gameState, onSummon, onB
       onReshufflePay(cost);
       setShowReshuffleModal(false);
       
+      // Reshuffle never obeys Strategy Lock - it always triggers a check
+      // Logic check: if steps become 0 here, it will end phase after timeout.
+      const newSteps = gameState.stepsRemaining - cost;
       setTimeout(() => {
-         processMatchesAndShuffle(newGrid, steps - cost);
+         processMatchesAndShuffle(newGrid, newSteps);
       }, 300);
   };
 
@@ -184,7 +188,7 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({ gameState, onSummon, onB
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [grid, animating, steps, isLocked]);
+  }, [grid, animating, steps, isLocked, strategyLocked]);
 
 
   const performSwap = (commander: GridItem, target: GridItem) => {
@@ -200,9 +204,18 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({ gameState, onSummon, onB
     const nextSteps = steps - 1;
     setSteps(nextSteps);
 
-    setTimeout(() => {
-        processMatchesAndShuffle(swappedGrid, nextSteps);
-    }, 300);
+    if (strategyLocked) {
+        // Strategy Mode: Move, consume step, but DO NOT check matches
+        setTimeout(() => {
+            setAnimating(false);
+            checkPhaseEnd(swappedGrid, nextSteps);
+        }, 250);
+    } else {
+        // Normal Mode: Move -> Check Matches
+        setTimeout(() => {
+            processMatchesAndShuffle(swappedGrid, nextSteps);
+        }, 300);
+    }
   };
 
   const processMatchesAndShuffle = (currentGrid: GridItem[], currentSteps: number) => {
@@ -214,7 +227,7 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({ gameState, onSummon, onB
 
       if (matches.size > 0) {
         setMatchedIds(matches);
-        onSummon(types);
+        onSummon(types); // 'types' can contain multiple entries (e.g., 2 Infantry) if multiple lines matched
 
         setTimeout(() => {
           setMatchedIds(new Set()); 
@@ -262,8 +275,9 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({ gameState, onSummon, onB
     const processBuffer = (buffer: GridItem[]) => {
         if (buffer.length >= 3) {
             const type = buffer[0].type;
+            buffer.forEach(m => matchedIds.add(m.id));
+
             if (isSoldier(type)) {
-                buffer.forEach(m => matchedIds.add(m.id));
                 let count = 1;
                 if (buffer.length === 4) count = 2;
                 if (buffer.length >= 5) count = 4;
@@ -279,17 +293,37 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({ gameState, onSummon, onB
         }
     };
 
+    // 1. Rows
     for (let r = 0; r < n; r++) checkLine(matrix[r]);
+
+    // 2. Columns
     for (let c = 0; c < n; c++) checkLine(matrix.map(row => row[c]));
     
-    const mainDiag = [];
-    const antiDiag = [];
-    for(let i=0; i<n; i++) {
-        if(matrix[i][i]) mainDiag.push(matrix[i][i]);
-        if(matrix[i][n-1-i]) antiDiag.push(matrix[i][n-1-i]);
+    // 3. All Diagonals (TL to BR) -> k = row - col
+    for (let k = -(n - 1); k <= (n - 1); k++) {
+        const diag: GridItem[] = [];
+        for (let r = 0; r < n; r++) {
+            const c = r - k;
+            if (c >= 0 && c < n) {
+                const item = matrix[r][c];
+                if (item) diag.push(item);
+            }
+        }
+        if (diag.length >= 3) checkLine(diag);
     }
-    checkLine(mainDiag);
-    checkLine(antiDiag);
+
+    // 4. All Anti-Diagonals (TR to BL) -> k = row + col
+    for (let k = 0; k <= 2 * (n - 1); k++) {
+        const diag: GridItem[] = [];
+        for (let r = 0; r < n; r++) {
+            const c = k - r;
+            if (c >= 0 && c < n) {
+                const item = matrix[r][c];
+                if (item) diag.push(item);
+            }
+        }
+        if (diag.length >= 3) checkLine(diag);
+    }
 
     return { matches: matchedIds, types: typesToSummon, obstacleSummons };
   };
@@ -332,6 +366,8 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({ gameState, onSummon, onB
   });
   const commander = getCommander();
   const reshuffleCost = gameState.reshufflesUsed === 0 ? 0 : gameState.reshufflesUsed;
+  // Strictly enforce cost check from game state prop
+  const canAffordReshuffle = gameState.stepsRemaining >= reshuffleCost;
 
   return (
     <div className={`h-full w-full bg-gray-800 flex flex-col items-center p-2 relative transition-all duration-1000 ${isLocked ? 'grayscale brightness-50 pointer-events-none' : ''}`}>
@@ -339,6 +375,19 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({ gameState, onSummon, onB
         <div className="absolute -top-6 bg-gray-900 px-4 py-1 rounded-t-xl border-t border-l border-r border-gray-600 text-yellow-400 font-bold text-sm z-20 flex gap-4">
           <span>STEPS: {steps}</span>
         </div>
+      )}
+      
+      {!isLocked && (
+        <button
+            onClick={() => setStrategyLocked(!strategyLocked)}
+            className={`
+                absolute bottom-4 left-4 w-14 h-14 rounded-full shadow-lg flex flex-col items-center justify-center z-30 border-2 transition-all
+                ${strategyLocked ? 'bg-red-900 border-red-500 text-white' : 'bg-slate-700 border-slate-500 text-slate-300 hover:bg-slate-600'}
+            `}
+        >
+            {strategyLocked ? <Lock size={20} className="mb-0.5 text-red-200" /> : <Unlock size={20} className="mb-0.5" />}
+            <span className="text-[9px] font-mono leading-none">{strategyLocked ? 'LOCKED' : 'UNLOCK'}</span>
+        </button>
       )}
 
       {!isLocked && (
@@ -355,7 +404,6 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({ gameState, onSummon, onB
           </button>
       )}
 
-      {/* RESHUFFLE CONFIRM MODAL */}
       {showReshuffleModal && (
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in px-4">
               <div className="bg-slate-800 border-2 border-slate-600 rounded-xl p-6 shadow-2xl w-full max-w-xs flex flex-col items-center text-center">
@@ -366,7 +414,7 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({ gameState, onSummon, onB
                   
                   <div className="flex items-center gap-2 bg-slate-900 px-4 py-2 rounded-lg border border-slate-700 mb-6">
                       <span className="text-slate-400 text-sm">COST:</span>
-                      <span className={`font-bold text-lg ${steps < reshuffleCost ? 'text-red-500' : 'text-yellow-400'}`}>
+                      <span className={`font-bold text-lg ${!canAffordReshuffle ? 'text-red-500' : 'text-yellow-400'}`}>
                           {reshuffleCost} STEPS
                       </span>
                   </div>
@@ -380,10 +428,10 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({ gameState, onSummon, onB
                       </button>
                       <button 
                         onClick={confirmReshuffle}
-                        disabled={steps < reshuffleCost}
+                        disabled={!canAffordReshuffle}
                         className={`
                             flex-1 py-2 rounded-lg font-bold flex items-center justify-center gap-2
-                            ${steps < reshuffleCost ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-yellow-600 hover:bg-yellow-500 text-white'}
+                            ${!canAffordReshuffle ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-yellow-600 hover:bg-yellow-500 text-white'}
                         `}
                       >
                         CONFIRM
@@ -395,7 +443,9 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({ gameState, onSummon, onB
 
       <div className="flex-1 flex items-center justify-center">
          <div 
-           className="grid gap-2 p-2 bg-gray-700 rounded-lg shadow-inner border-2 border-gray-600"
+           className={`grid gap-2 p-2 rounded-lg shadow-inner border-2 transition-colors duration-300
+              ${strategyLocked ? 'bg-red-950/30 border-red-900/50' : 'bg-gray-700 border-gray-600'}
+           `}
            style={{ gridTemplateColumns: `repeat(${gameState.gridSize}, minmax(0, 1fr))` }}
          >
            {sortedGrid.map((item) => {

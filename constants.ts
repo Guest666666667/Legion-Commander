@@ -1,10 +1,12 @@
 
 import { UnitType, CommanderProfile, CommanderType, EntityStats } from './types';
+import { Box, Grid, Coins, Swords, Crosshair, ShieldCheck, Tent, LucideIcon } from 'lucide-react';
 
 export const INITIAL_GRID_SIZE = 3;
 export const MAX_GRID_SIZE = 5;
 export const LEVELS_PER_RUN = 6;
-export const DEFAULT_SPEED_MULTIPLIER = 2;
+export const DEFAULT_SPEED_MULTIPLIER = 3;
+export const VICTORY_DELAY_MS = 2000;
 
 // Steps per level: [Level 1, Level 2, ..., Level 6]
 export const LEVEL_STEPS = [10, 13, 18, 25, 34, 45];
@@ -59,6 +61,24 @@ export const UNIT_COLORS: Record<UnitType, string> = {
   [UnitType.OBSTACLE]: 'bg-gray-700',
   [UnitType.ENEMY_MELEE]: 'bg-red-950',
   [UnitType.ENEMY_RANGE]: 'bg-green-950',
+};
+
+// Reward Definitions
+export interface RewardDef {
+  id: string;
+  label: string;
+  desc: string;
+  icon: any; // LucideIcon type
+}
+
+export const REWARD_DEFINITIONS: Record<string, RewardDef> = {
+  'EXPAND': { id: 'EXPAND', label: 'Expand', desc: 'Increase board size by 1. Adds new Unit types.', icon: Grid },
+  'SCAVENGER': { id: 'SCAVENGER', label: 'Scavenger', desc: 'Obstacle lines (3+) summon units passively.', icon: Box },
+  'GREED': { id: 'GREED', label: 'Greed', desc: '+1 Reward Selection for future victories.', icon: Coins },
+  [`UPGRADE_${UnitType.INFANTRY}`]: { id: `UPGRADE_${UnitType.INFANTRY}`, label: 'Elite Inf.', desc: '+HP, +ATK, Larger Size.', icon: Swords },
+  [`UPGRADE_${UnitType.ARCHER}`]: { id: `UPGRADE_${UnitType.ARCHER}`, label: 'Elite Arch.', desc: '+HP, +ATK, Larger Size.', icon: Crosshair },
+  [`UPGRADE_${UnitType.SHIELD}`]: { id: `UPGRADE_${UnitType.SHIELD}`, label: 'Elite Shld.', desc: '+HP, +DEF, Larger Size.', icon: ShieldCheck },
+  [`UPGRADE_${UnitType.SPEAR}`]: { id: `UPGRADE_${UnitType.SPEAR}`, label: 'Elite Spr.', desc: '+HP, +ATK, Larger Size.', icon: Tent },
 };
 
 // --- LEVEL CONFIGURATION ---

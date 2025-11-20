@@ -1,7 +1,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { BattleEntity, Phase, UnitType, Projectile, VisualEffect, CommanderType } from '../types';
-import { UNIT_STATS, GAME_LEVELS, DEFAULT_SPEED_MULTIPLIER, UNIT_UPGRADES } from '../constants';
+import { UNIT_STATS, GAME_LEVELS, DEFAULT_SPEED_MULTIPLIER, UNIT_UPGRADES, VICTORY_DELAY_MS } from '../constants';
 import { UnitIcon } from './UnitIcon';
 import { Play, MoveRight, Sparkles, Pause, X, Shield, Sword, Heart, Crosshair } from 'lucide-react';
 
@@ -25,6 +25,7 @@ export const BattleZone: React.FC<BattleZoneProps> = ({ allies, level, phase, co
   const frameRef = useRef<number>(0);
   const lastTimeRef = useRef<number>(0);
   const alliesProcessedCount = useRef<number>(0);
+  const isBattleEndingRef = useRef(false);
 
   // --- Helpers ---
 
@@ -57,6 +58,7 @@ export const BattleZone: React.FC<BattleZoneProps> = ({ allies, level, phase, co
         const baseStats = UNIT_STATS[type];
         if (!baseStats) return;
 
+        // NOTE: Enemy stats are NOT affected by upgrades
         for (let i = 0; i < count; i++) {
             initialEnemies.push({
                 ...baseStats,
@@ -100,6 +102,7 @@ export const BattleZone: React.FC<BattleZoneProps> = ({ allies, level, phase, co
     setEffects([]);
     setSelectedEntity(null);
     alliesProcessedCount.current = 0;
+    isBattleEndingRef.current = false;
     setIsPaused(false);
   }, [level]);
 
@@ -113,7 +116,7 @@ export const BattleZone: React.FC<BattleZoneProps> = ({ allies, level, phase, co
          const base = UNIT_STATS[type];
          let stats = { ...base };
 
-         // Apply Upgrades
+         // Apply Upgrades ONLY for Players
          if (upgrades.includes(type)) {
              const bonus = UNIT_UPGRADES[type];
              if (bonus) {
@@ -170,15 +173,23 @@ export const BattleZone: React.FC<BattleZoneProps> = ({ allies, level, phase, co
       const enemies = activeEnts.filter(e => e.team === 'ENEMY');
 
       // --- Victory Condition Check ---
-      if (players.length === 0 && enemies.length > 0) {
-          onBattleEnd(false);
-      } else if (enemies.length === 0 && players.length > 0) {
-          const survivors = players
-            .filter(p => p.type !== UnitType.COMMANDER)
-            .map(p => p.type);
-          onBattleEnd(true, survivors);
-      } else if (players.length === 0 && enemies.length === 0 && prevEnts.length > 0) {
-          onBattleEnd(false);
+      if (!isBattleEndingRef.current) {
+        if (players.length === 0 && enemies.length > 0) {
+            isBattleEndingRef.current = true;
+            onBattleEnd(false);
+        } else if (enemies.length === 0 && players.length > 0) {
+            isBattleEndingRef.current = true;
+            setTimeout(() => {
+                const survivors = players
+                    .filter(p => p.type !== UnitType.COMMANDER)
+                    .map(p => p.type);
+                onBattleEnd(true, survivors);
+            }, VICTORY_DELAY_MS);
+        } else if (players.length === 0 && enemies.length === 0 && prevEnts.length > 0) {
+            // Draw/Wipe (treat as defeat or check logic)
+            isBattleEndingRef.current = true;
+            onBattleEnd(false);
+        }
       }
 
       activeEnts.forEach(entity => {
@@ -365,15 +376,31 @@ export const BattleZone: React.FC<BattleZoneProps> = ({ allies, level, phase, co
              if (ent.hp <= 0) return null;
              const zIndex = Math.floor(ent.y * 100);
              const isHit = performance.now() - ent.lastHitTime < 150;
-             const isUpgraded = upgrades.includes(ent.type);
+             const isUpgraded = upgrades.includes(ent.type) && ent.team === 'PLAYER'; // Ensure only player units get upgrade visual
              const scale = ent.scale || 1;
 
              return (
-               <div key={ent.id} onClick={() => handleEntityClick(ent)} className={`absolute transition-transform duration-100 will-change-transform cursor-pointer hover:scale-110 active:scale-95`} style={{ left: `${ent.x}%`, top: `${ent.y}%`, zIndex: zIndex, transform: `translate(-50%, -50%) scale(${ent.team === 'ENEMY' ? '-1, 1' : '1, 1'}) scale(${scale})`, width: '32px', height: '32px' }}>
+               <div 
+                key={ent.id} 
+                onClick={() => handleEntityClick(ent)} 
+                className={`absolute transition-transform duration-100 will-change-transform cursor-pointer hover:scale-110 active:scale-95`} 
+                style={{ 
+                    left: `${ent.x}%`, 
+                    top: `${ent.y}%`, 
+                    zIndex: zIndex, 
+                    transform: `translate(-50%, -50%) scale(${scale})`, // No flip here, flip is internal
+                    width: '32px', 
+                    height: '32px' 
+                }}
+               >
+                 {/* HP Bar - Always upright */}
                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-8 h-1 bg-gray-700 rounded overflow-hidden" style={{ transform: `scale(${1/scale})` }}>
                    <div className={`h-full ${ent.team === 'PLAYER' ? 'bg-green-500' : 'bg-red-500'}`} style={{ width: `${(ent.hp / ent.maxHp) * 100}%` }}></div>
                  </div>
-                 <div className={`transition-all duration-75 ${ent.team === 'ENEMY' ? 'brightness-75 hue-rotate-180' : ''} ${isHit ? 'brightness-200 sepia saturate-200 hue-rotate-[-50deg]' : ''}`}>
+
+                 {/* Icon Container - Flippable */}
+                 <div className={`w-full h-full transition-all duration-75 ${ent.team === 'ENEMY' ? 'brightness-75 hue-rotate-180' : ''} ${isHit ? 'brightness-200 sepia saturate-200 hue-rotate-[-50deg]' : ''}`}
+                      style={{ transform: `scale(${ent.team === 'ENEMY' ? '-1, 1' : '1, 1'})` }}>
                     <UnitIcon type={ent.type} isUpgraded={isUpgraded} />
                  </div>
                </div>
