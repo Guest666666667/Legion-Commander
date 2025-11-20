@@ -32,11 +32,27 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({ gameState, onSummon, onM
     const n = gameState.gridSize;
     const totalCells = n * n;
     
-    const obstacleCount = n - 1;
-    const soldierTypesCount = n - 1; 
+    // Remodel logic: n-1 base obstacles. Remodel replaces 'remodelLevel' count of them.
+    const totalObstacles = n - 1;
+    const remodelCount = Math.min(totalObstacles, gameState.remodelLevel);
+    const obstacleCount = Math.max(0, totalObstacles - remodelCount);
+    
     const commanderCount = 1;
-    const soldierTotalCount = totalCells - obstacleCount - commanderCount;
-    const countPerSoldier = Math.floor(soldierTotalCount / soldierTypesCount);
+    
+    const availableTypes = [UnitType.INFANTRY, UnitType.ARCHER, UnitType.SHIELD, UnitType.SPEAR];
+    const currentSoldierTypes = availableTypes.slice(0, n - 1); // e.g. n=3 -> [Inf, Arch]
+    
+    const remodelExtras: UnitType[] = [];
+    if (remodelCount > 0) {
+        for (let i=0; i < remodelCount; i++) {
+            // Pick a random available soldier type for each remodel slot
+            const randomType = currentSoldierTypes[Math.floor(Math.random() * currentSoldierTypes.length)];
+            remodelExtras.push(randomType);
+        }
+    }
+
+    const soldierTotalCount = totalCells - obstacleCount - commanderCount - remodelExtras.length;
+    const countPerSoldier = Math.floor(soldierTotalCount / currentSoldierTypes.length);
     
     const items: GridItem[] = [];
     let idCounter = 0;
@@ -49,18 +65,20 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({ gameState, onSummon, onM
       items.push({ id: `gen-${idCounter++}`, type: UnitType.OBSTACLE, row: 0, col: 0 });
     }
 
-    // Add Soldiers
-    const availableTypes = [UnitType.INFANTRY, UnitType.ARCHER, UnitType.SHIELD, UnitType.SPEAR];
-    const currentTypes = availableTypes.slice(0, soldierTypesCount);
+    // Add Remodel Extra Soldiers
+    remodelExtras.forEach(type => {
+       items.push({ id: `gen-${idCounter++}`, type: type, row: 0, col: 0 });
+    });
 
-    currentTypes.forEach(type => {
+    // Add Standard Soldiers
+    currentSoldierTypes.forEach(type => {
       for (let i = 0; i < countPerSoldier; i++) {
         items.push({ id: `gen-${idCounter++}`, type: type, row: 0, col: 0 });
       }
     });
 
     while(items.length < totalCells) {
-       items.push({ id: `gen-${idCounter++}`, type: currentTypes[0], row: 0, col: 0 });
+       items.push({ id: `gen-${idCounter++}`, type: currentSoldierTypes[0], row: 0, col: 0 });
     }
 
     // Shuffle
@@ -77,7 +95,7 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({ gameState, onSummon, onM
 
     setGrid(items);
     setMatchedIds(new Set());
-  }, [gameState.gridSize, isLocked]);
+  }, [gameState.gridSize, gameState.remodelLevel, isLocked]);
 
   useEffect(() => {
     if (!isLocked && grid.length === 0) {

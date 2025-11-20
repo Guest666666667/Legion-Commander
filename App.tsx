@@ -4,7 +4,7 @@ import {
   GameState, Phase, CommanderType, UnitType, GridItem 
 } from './types';
 import { 
-  INITIAL_GRID_SIZE, LEVELS_PER_RUN, MAX_GRID_SIZE, LEVEL_STEPS, REWARD_DEFINITIONS
+  INITIAL_GRID_SIZE, LEVELS_PER_RUN, MAX_GRID_SIZE, LEVEL_STEPS, REWARD_DEFINITIONS, INITIAL_ARMY_CONFIG
 } from './constants';
 
 // Components
@@ -33,6 +33,7 @@ const App: React.FC = () => {
     maxRewardSelections: 1,
     rewardsRemaining: 0,
     upgrades: [],
+    remodelLevel: 0,
     currentRewardIds: [],
     rewardsHistory: {},
     scoreStats: { matches3: 0, matches4: 0, matches5: 0, reshuffles: 0, won: false, kills: {} }
@@ -49,7 +50,7 @@ const App: React.FC = () => {
       gridSize: INITIAL_GRID_SIZE,
       stepsRemaining: LEVEL_STEPS[0],
       reshufflesUsed: 0,
-      summonQueue: [UnitType.COMMANDER], // Deploy Commander immediately
+      summonQueue: [UnitType.COMMANDER, ...INITIAL_ARMY_CONFIG], // Deploy Commander and Debug Army
       survivors: [],
       playerHp: 100,
       scavengerLevel: 0,
@@ -57,6 +58,7 @@ const App: React.FC = () => {
       maxRewardSelections: 1,
       rewardsRemaining: 0,
       upgrades: [],
+      remodelLevel: 0,
       currentRewardIds: [],
       rewardsHistory: {},
       scoreStats: { matches3: 0, matches4: 0, matches5: 0, reshuffles: 0, won: false, kills: {} }
@@ -115,6 +117,11 @@ const App: React.FC = () => {
       // AGILITY (Max 1 time - adds +1 range)
       if ((history['AGILITY'] || 0) < 1) {
           pool.push('AGILITY');
+      }
+
+      // REMODEL (Max 4 times)
+      if (currentState.remodelLevel < 4) {
+          pool.push('REMODEL');
       }
 
       // GREED (Max 1 time)
@@ -188,6 +195,7 @@ const App: React.FC = () => {
       let newScavenger = prev.scavengerLevel;
       let newMaxRewards = prev.maxRewardSelections;
       let newMoveRange = prev.commanderMoveRange;
+      let newRemodelLevel = prev.remodelLevel;
       const currentUpgrades = [...prev.upgrades];
       const newHistory = { ...prev.rewardsHistory };
       
@@ -203,6 +211,8 @@ const App: React.FC = () => {
             newMaxRewards += 1;
         } else if (rewardId === 'AGILITY') {
             newMoveRange += 1;
+        } else if (rewardId === 'REMODEL') {
+            newRemodelLevel += 1;
         } else if (rewardId.startsWith('UPGRADE_')) {
             const type = rewardId.replace('UPGRADE_', '') as UnitType;
             if (!currentUpgrades.includes(type)) {
@@ -221,6 +231,7 @@ const App: React.FC = () => {
         scavengerLevel: newScavenger,
         maxRewardSelections: newMaxRewards,
         commanderMoveRange: newMoveRange,
+        remodelLevel: newRemodelLevel,
         upgrades: currentUpgrades,
         rewardsRemaining: 0,
         rewardsHistory: newHistory,
@@ -253,6 +264,7 @@ const App: React.FC = () => {
         maxRewardSelections: 1,
         rewardsRemaining: 0,
         upgrades: [],
+        remodelLevel: 0,
         currentRewardIds: [],
         rewardsHistory: {},
         scoreStats: { matches3: 0, matches4: 0, matches5: 0, reshuffles: 0, won: false, kills: {} }

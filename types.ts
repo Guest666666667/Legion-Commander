@@ -24,7 +24,8 @@ export interface EntityStats {
   atk: number;
   range: number; // 1 = melee, 3+ = range
   def: number;
-  speed: number; // Lower is faster attack interval
+  speed: number; // Lower is faster attack interval (ms)
+  moveSpeed: number; // Movement speed (0.01 - 0.1 range recommended)
   scale: number; // Visual size multiplier
 }
 
@@ -45,6 +46,10 @@ export interface BattleEntity extends EntityStats {
   targetId: string | null;
   lastAttackTime: number;
   lastHitTime: number; // For damage flash effect
+  
+  // Special AI States (e.g. for Spear Charge)
+  aiState?: 'WAITING' | 'CHARGING' | 'NORMAL';
+  aiTimer?: number;
 }
 
 export interface Projectile {
@@ -109,6 +114,7 @@ export interface GameState {
   maxRewardSelections: number; // Default 1. Greed increases this.
   rewardsRemaining: number; // Tracks picks left in current victory phase
   upgrades: UnitType[]; // List of unit types that have been upgraded
+  remodelLevel: number; // How many obstacles are replaced by units (Max 4)
   
   // Reward Randomization
   currentRewardIds: string[];

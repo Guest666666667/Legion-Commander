@@ -31,11 +31,15 @@ export const RewardScreen: React.FC<RewardScreenProps> = ({ rewardIds, onSelect,
 
   const toggleSelection = (id: string) => {
     if (selectedIds.includes(id)) {
+      // Deselect always allowed
       setSelectedIds(prev => prev.filter(sid => sid !== id));
     } else {
-      // Only add if we haven't reached the limit
-      if (selectedIds.length < maxSelectable) {
-        setSelectedIds(prev => [...prev, id]);
+      if (maxSelectable === 1) {
+          // If limit is 1, simple swap without needing to deselect first
+          setSelectedIds([id]);
+      } else if (selectedIds.length < maxSelectable) {
+          // Multi-select mode: add if space available
+          setSelectedIds(prev => [...prev, id]);
       }
     }
   };
@@ -112,14 +116,14 @@ export const RewardScreen: React.FC<RewardScreenProps> = ({ rewardIds, onSelect,
                     <button
                       key={id}
                       onClick={() => isValid && toggleSelection(id)}
-                      disabled={!isValid || (!isSelected && atCapacity)}
+                      disabled={!isValid || (!isSelected && atCapacity && maxSelectable > 1)}
                       className={`
                         flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all duration-200 aspect-square relative
                         ${!isValid 
                             ? 'opacity-30 grayscale cursor-not-allowed border-slate-800 bg-slate-950' 
                             : isSelected 
                                 ? 'bg-gradient-to-br from-yellow-900/60 to-slate-900 border-yellow-400 scale-105 z-10 shadow-lg' 
-                                : atCapacity
+                                : (atCapacity && maxSelectable > 1)
                                     ? 'bg-slate-800 border-slate-700 opacity-60 cursor-not-allowed'
                                     : 'bg-slate-800 border-slate-600 hover:border-slate-500 hover:bg-slate-700'
                         }

@@ -1,12 +1,20 @@
 
 import { UnitType, CommanderProfile, CommanderType, EntityStats } from './types';
-import { Box, Grid, Coins, Swords, Crosshair, ShieldCheck, Tent, Footprints, LucideIcon } from 'lucide-react';
+import { Box, Grid, Coins, Swords, Crosshair, ShieldCheck, Tent, Footprints, LucideIcon, Hammer } from 'lucide-react';
 
 export const INITIAL_GRID_SIZE = 3;
 export const MAX_GRID_SIZE = 5;
 export const LEVELS_PER_RUN = 6;
 export const DEFAULT_SPEED_MULTIPLIER = 3;
 export const VICTORY_DELAY_MS = 2000;
+
+// DEBUG: Define units to spawn immediately with the Commander at game start
+export const INITIAL_ARMY_CONFIG: UnitType[] = [
+    UnitType.INFANTRY,
+    UnitType.SPEAR,
+    UnitType.ARCHER,
+    UnitType.SHIELD
+];
 
 // Steps per level: [Level 1, Level 2, ..., Level 6]
 export const LEVEL_STEPS = [10, 13, 18, 25, 34, 45];
@@ -16,7 +24,7 @@ export const SCORING = {
   MATCH_3: 100,
   MATCH_4: 300,
   MATCH_5: 1000,
-  RESHUFFLE_COST: 50,
+  RESHUFFLE_COST: -50,
   UNIT_SURVIVOR_BONUS: {
     [UnitType.COMMANDER]: 800,
     [UnitType.INFANTRY]: 100,
@@ -54,18 +62,19 @@ export const COMMANDERS: Record<CommanderType, CommanderProfile> = {
 };
 
 // Speed: Lower is faster (ms delay between attacks)
+// moveSpeed: Units per frame (approximate percentage of screen width)
 export const UNIT_STATS: Record<UnitType, EntityStats> = {
-  [UnitType.COMMANDER]: { hp: 500, maxHp: 500, atk: 30, range: 1, def: 5, speed: 1000, scale: 1.2 },
-  [UnitType.INFANTRY]: { hp: 100, maxHp: 100, atk: 15, range: 1, def: 2, speed: 800, scale: 1 }, // Fast attacker
-  [UnitType.ARCHER]: { hp: 60, maxHp: 60, atk: 25, range: 6, def: 0, speed: 2000, scale: 0.8 },   // Slow attacker, high dmg
-  [UnitType.SHIELD]: { hp: 200, maxHp: 200, atk: 8, range: 1, def: 8, speed: 1200, scale: 1.1 },
-  [UnitType.SPEAR]: { hp: 120, maxHp: 120, atk: 20, range: 2.5, def: 3, speed: 1100, scale: 1 }, // Slightly ranged melee
-  [UnitType.OBSTACLE]: { hp: 500, maxHp: 500, atk: 0, range: 0, def: 0, speed: 99999, scale: 1 },
+  [UnitType.COMMANDER]: { hp: 500, maxHp: 500, atk: 30, range: 1, def: 5, speed: 1000, moveSpeed: 0.03, scale: 1.2 },
+  [UnitType.INFANTRY]: { hp: 100, maxHp: 100, atk: 15, range: 1, def: 5, speed: 800, moveSpeed: 0.05, scale: 1 }, // Fast mover
+  [UnitType.ARCHER]: { hp: 60, maxHp: 60, atk: 20, range: 6, def: 1, speed: 2000, moveSpeed: 0.025, scale: 0.8 },   // Slow mover
+  [UnitType.SHIELD]: { hp: 200, maxHp: 200, atk: 8, range: 1, def: 10, speed: 1500, moveSpeed: 0.02, scale: 1.1 }, // Very slow
+  [UnitType.SPEAR]: { hp: 120, maxHp: 120, atk: 25, range: 2, def: 8, speed: 900, moveSpeed: 0.04, scale: 1 }, // Average
+  [UnitType.OBSTACLE]: { hp: 500, maxHp: 500, atk: 0, range: 0, def: 0, speed: 99999, moveSpeed: 0, scale: 1 },
 };
 
 // Upgrade Config: Absolute values added to base stats
 export const UNIT_UPGRADES: Partial<Record<UnitType, Partial<EntityStats>>> = {
-  [UnitType.INFANTRY]: { hp: 50, atk: 10, def: 1, scale: 1.3 },
+  [UnitType.INFANTRY]: { hp: 50, atk: 10, def: 1, moveSpeed: 0.01, scale: 1.3 },
   [UnitType.ARCHER]: { hp: 30, atk: 15, range: 2, scale: 1.3 },
   [UnitType.SHIELD]: { hp: 100, def: 4, scale: 1.3 },
   [UnitType.SPEAR]: { hp: 90, atk: 15, scale: 1.3 },
@@ -80,6 +89,28 @@ export const UNIT_COLORS: Record<UnitType, string> = {
   [UnitType.OBSTACLE]: 'bg-gray-700',
 };
 
+// Spawn Position Configuration (Percentages 0-100)
+// 'base': Starting X position
+// 'variance': Random amount added to base
+export const SPAWN_CONFIG = {
+  PLAYER: {
+    [UnitType.ARCHER]: { base: 5, variance: 8 },
+    [UnitType.INFANTRY]: { base: 10, variance: 10 },
+    [UnitType.SHIELD]: { base: 40, variance: 5 },
+    [UnitType.SPEAR]: { base: 15, variance: 10 },
+    [UnitType.COMMANDER]: { base: 20, variance: 10 },
+    DEFAULT: { base: 10, variance: 10 }
+  },
+  ENEMY: {
+    [UnitType.ARCHER]: { base: 90, variance: 6 },
+    [UnitType.INFANTRY]: { base: 85, variance: 8 },
+    [UnitType.SHIELD]: { base: 55, variance: 5 },
+    [UnitType.SPEAR]: { base: 80, variance: 8 },
+    [UnitType.COMMANDER]: { base: 75, variance: 6 },
+    DEFAULT: { base: 85, variance: 10 }
+  }
+};
+
 // Reward Definitions
 export interface RewardDef {
   id: string;
@@ -91,9 +122,10 @@ export interface RewardDef {
 export const REWARD_DEFINITIONS: Record<string, RewardDef> = {
   'EXPAND': { id: 'EXPAND', label: 'Expand', desc: 'Increase board size by 1. Adds new Unit types.', icon: Grid },
   'SCAVENGER': { id: 'SCAVENGER', label: 'Scavenger', desc: 'Obstacle lines (3+) summon units passively.', icon: Box },
+  'REMODEL': { id: 'REMODEL', label: 'Remodel', desc: 'Replaces 1 Obstacle with a random Unit.', icon: Hammer },
   'GREED': { id: 'GREED', label: 'Greed', desc: '+1 Reward Selection for future victories.', icon: Coins },
   'AGILITY': { id: 'AGILITY', label: 'Agility', desc: 'Commander Move Range +1.', icon: Footprints },
-  [`UPGRADE_${UnitType.INFANTRY}`]: { id: `UPGRADE_${UnitType.INFANTRY}`, label: 'Elite Inf.', desc: '+HP, +ATK, +DEF', icon: Swords },
+  [`UPGRADE_${UnitType.INFANTRY}`]: { id: `UPGRADE_${UnitType.INFANTRY}`, label: 'Elite Inf.', desc: '+HP, +ATK, +SPD', icon: Swords },
   [`UPGRADE_${UnitType.ARCHER}`]: { id: `UPGRADE_${UnitType.ARCHER}`, label: 'Elite Arch.', desc: '+HP, +ATK, +RANGE', icon: Crosshair },
   [`UPGRADE_${UnitType.SHIELD}`]: { id: `UPGRADE_${UnitType.SHIELD}`, label: 'Elite Shld.', desc: '+HP, +DEF', icon: ShieldCheck },
   [`UPGRADE_${UnitType.SPEAR}`]: { id: `UPGRADE_${UnitType.SPEAR}`, label: 'Elite Spr.', desc: '+HP, +ATK', icon: Tent },
@@ -102,7 +134,7 @@ export const REWARD_DEFINITIONS: Record<string, RewardDef> = {
 // --- LEVEL CONFIGURATION ---
 
 export interface LevelConfig {
-  difficultyMult: number; // Multiplier for Enemy Stats
+  difficultyMult: number; // Multiplier for Enemy Stats and Size
   unitCounts: Partial<Record<UnitType, number>>; // Enemy composition
   commanderCount: number;
 }

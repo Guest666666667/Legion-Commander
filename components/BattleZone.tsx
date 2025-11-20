@@ -1,7 +1,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { BattleEntity, Phase, UnitType, Projectile, VisualEffect, CommanderType } from '../types';
-import { UNIT_STATS, GAME_LEVELS, DEFAULT_SPEED_MULTIPLIER, UNIT_UPGRADES, VICTORY_DELAY_MS, REWARD_DEFINITIONS } from '../constants';
+import { UNIT_STATS, GAME_LEVELS, DEFAULT_SPEED_MULTIPLIER, UNIT_UPGRADES, VICTORY_DELAY_MS, REWARD_DEFINITIONS, SPAWN_CONFIG } from '../constants';
 import { UnitIcon } from './UnitIcon';
 import { Play, MoveRight, Sparkles, Pause, X, Shield, Sword, Heart, Crosshair, Flag } from 'lucide-react';
 
@@ -35,17 +35,18 @@ export const BattleZone: React.FC<BattleZoneProps> = ({ allies, level, phase, co
   // --- Helpers ---
 
   const getSpawnX = (type: UnitType, team: 'PLAYER' | 'ENEMY') => {
-    if (team === 'ENEMY') {
-      if (type === UnitType.SHIELD) return 75 + (Math.random() * 5);
-      if (type === UnitType.INFANTRY || type === UnitType.SPEAR) return 82 + (Math.random() * 8);
-      if (type === UnitType.ARCHER || type === UnitType.COMMANDER) return 92 + (Math.random() * 6);
-      return 85 + (Math.random() * 10); 
-    } else {
-      if (type === UnitType.SHIELD) return 25 + (Math.random() * 5);
-      if (type === UnitType.INFANTRY || type === UnitType.SPEAR || type === UnitType.COMMANDER) return 15 + (Math.random() * 10);
-      if (type === UnitType.ARCHER) return 5 + (Math.random() * 8);
-      return 10 + (Math.random() * 10);
-    }
+    const config = team === 'ENEMY' ? SPAWN_CONFIG.ENEMY : SPAWN_CONFIG.PLAYER;
+    // @ts-ignore - dynamic property access
+    const spawnData = config[type] || config.DEFAULT;
+    return spawnData.base + (Math.random() * spawnData.variance);
+  };
+
+  const getEffectiveDef = (entity: BattleEntity) => {
+      // Spear units get double defense while Waiting or Charging
+      if (entity.type === UnitType.SPEAR && entity.aiState && entity.aiState !== 'NORMAL') {
+          return entity.def * 2;
+      }
+      return entity.def;
   };
 
   // --- Initialization ---
@@ -63,6 +64,9 @@ export const BattleZone: React.FC<BattleZoneProps> = ({ allies, level, phase, co
         const baseStats = UNIT_STATS[type];
         if (!baseStats) return;
 
+        // Scale enemy size by difficulty
+        const enemyScale = (baseStats.scale || 1) * config.difficultyMult;
+
         // NOTE: Enemy stats are NOT affected by upgrades
         for (let i = 0; i < count; i++) {
             initialEnemies.push({
@@ -70,6 +74,7 @@ export const BattleZone: React.FC<BattleZoneProps> = ({ allies, level, phase, co
                 maxHp: Math.floor(baseStats.maxHp * config.difficultyMult),
                 hp: Math.floor(baseStats.maxHp * config.difficultyMult),
                 atk: Math.floor(baseStats.atk * config.difficultyMult),
+                scale: enemyScale,
                 id: `e-${level}-${type}-${idCounter++}`,
                 type: type,
                 team: 'ENEMY',
@@ -77,19 +82,24 @@ export const BattleZone: React.FC<BattleZoneProps> = ({ allies, level, phase, co
                 y: 20 + (Math.random() * 60),
                 targetId: null,
                 lastAttackTime: 0,
-                lastHitTime: 0
+                lastHitTime: 0,
+                aiState: type === UnitType.SPEAR ? 'WAITING' : 'NORMAL',
+                aiTimer: 0
             });
         }
     });
 
     if (config.commanderCount > 0) {
         const cmdStats = UNIT_STATS[UnitType.COMMANDER];
+        const cmdScale = (cmdStats.scale || 1) * config.difficultyMult;
+
         for (let i = 0; i < config.commanderCount; i++) {
              initialEnemies.push({
                 ...cmdStats,
                 maxHp: Math.floor(cmdStats.maxHp * config.difficultyMult),
                 hp: Math.floor(cmdStats.maxHp * config.difficultyMult),
                 atk: Math.floor(cmdStats.atk * config.difficultyMult),
+                scale: cmdScale,
                 id: `e-cmd-${level}-${idCounter++}`,
                 type: UnitType.COMMANDER,
                 team: 'ENEMY',
@@ -97,7 +107,9 @@ export const BattleZone: React.FC<BattleZoneProps> = ({ allies, level, phase, co
                 y: 20 + (Math.random() * 60),
                 targetId: null,
                 lastAttackTime: 0,
-                lastHitTime: 0
+                lastHitTime: 0,
+                aiState: 'NORMAL',
+                aiTimer: 0
             });
         }
     }
@@ -131,6 +143,7 @@ export const BattleZone: React.FC<BattleZoneProps> = ({ allies, level, phase, co
                  stats.hp += (bonus.hp || 0);
                  stats.atk += (bonus.atk || 0);
                  stats.def += (bonus.def || 0);
+                 stats.moveSpeed += (bonus.moveSpeed || 0);
                  if (bonus.scale) stats.scale = bonus.scale;
              }
          }
@@ -144,7 +157,9 @@ export const BattleZone: React.FC<BattleZoneProps> = ({ allies, level, phase, co
             y: 20 + (Math.random() * 60),
             targetId: null,
             lastAttackTime: 0,
-            lastHitTime: 0
+            lastHitTime: 0,
+            aiState: type === UnitType.SPEAR ? 'WAITING' : 'NORMAL',
+            aiTimer: 0
          });
       });
 
@@ -208,19 +223,55 @@ export const BattleZone: React.FC<BattleZoneProps> = ({ allies, level, phase, co
       }
 
       activeEnts.forEach(entity => {
-        const targets = entity.team === 'PLAYER' ? enemies : players;
-        let target = targets.find(t => t.id === entity.targetId);
+        // --- Special Spear Logic ---
+        if (entity.type === UnitType.SPEAR && entity.aiState && entity.aiState !== 'NORMAL') {
+            // Update Timer
+            entity.aiTimer = (entity.aiTimer || 0) + (delta * speedMultiplier); // Scale timer by game speed
+            
+            if (entity.aiState === 'WAITING') {
+                if (entity.aiTimer >= 2000) {
+                    entity.aiState = 'CHARGING';
+                }
+                // While waiting, do nothing else
+                return;
+            }
 
-        if (!target || target.hp <= 0) {
-          let minDist = 10000;
-          let bestTarget: BattleEntity | null = null;
-          targets.forEach(t => {
-              const dist = Math.hypot(t.x - entity.x, t.y - entity.y);
-              if (dist < minDist) { minDist = dist; bestTarget = t; }
-          });
-          target = bestTarget || undefined;
-          entity.targetId = target ? target.id : null;
+            if (entity.aiState === 'CHARGING') {
+                // Target the backline of the opposing team
+                const targetX = entity.team === 'PLAYER' ? 90 : 10;
+                const distToTarget = Math.abs(targetX - entity.x);
+                
+                // Move fast (8x speed charge)
+                const chargeSpeed = (entity.moveSpeed || 0.04) * 8 * (delta / 16) * speedMultiplier;
+                const dir = Math.sign(targetX - entity.x);
+                
+                entity.x += dir * chargeSpeed;
+                
+                // Maintain Y or slightly steer? For "Rush", stick to line mostly.
+                // We can add slight wobble or steering if we wanted, but straight rush is best for piercing.
+                
+                if (distToTarget < 2) {
+                    entity.aiState = 'NORMAL'; // Revert to standard combat behavior
+                }
+                // While charging, do not attack
+                return;
+            }
         }
+
+
+        // --- Standard AI ---
+        const targets = entity.team === 'PLAYER' ? enemies : players;
+        
+        // Real-time targeting: Always look for the closest target every frame.
+        let minDist = 10000;
+        let bestTarget: BattleEntity | null = null;
+        targets.forEach(t => {
+            const dist = Math.hypot(t.x - entity.x, t.y - entity.y);
+            if (dist < minDist) { minDist = dist; bestTarget = t; }
+        });
+        
+        const target = bestTarget || undefined;
+        entity.targetId = target ? target.id : null;
 
         if (target) {
             const dist = Math.hypot(target.x - entity.x, target.y - entity.y);
@@ -246,14 +297,14 @@ export const BattleZone: React.FC<BattleZoneProps> = ({ allies, level, phase, co
                        x: entity.x,
                        y: entity.y,
                        targetId: target!.id,
-                       damage: Math.max(1, entity.atk - target!.def),
+                       damage: Math.max(1, entity.atk - getEffectiveDef(target!)),
                        speed: 0.08 * speedMultiplier,
                        rotation: Math.atan2(target!.y - entity.y, target!.x - entity.x) * (180 / Math.PI),
                        opacity: 1
                      }
                    ]);
                 } else {
-                  const dmg = Math.max(1, entity.atk - target.def);
+                  const dmg = Math.max(1, entity.atk - getEffectiveDef(target));
                   target.hp -= dmg;
                   target.lastHitTime = time;
                   
@@ -271,7 +322,8 @@ export const BattleZone: React.FC<BattleZoneProps> = ({ allies, level, phase, co
                 }
               }
             } else {
-              const moveSpeed = 0.03 * (delta / 16) * speedMultiplier;
+              // Movement Logic using moveSpeed
+              const moveSpeed = (entity.moveSpeed || 0.03) * (delta / 16) * speedMultiplier;
               const vx = (target.x - entity.x) / dist;
               const vy = (target.y - entity.y) / dist;
               entity.x += vx * moveSpeed;
@@ -447,6 +499,13 @@ export const BattleZone: React.FC<BattleZoneProps> = ({ allies, level, phase, co
                         <UnitIcon type={ent.type} isUpgraded={isUpgraded} />
                     </div>
                  </div>
+                 
+                 {/* Visual indicator for Charging Spear */}
+                 {ent.type === UnitType.SPEAR && ent.aiState === 'CHARGING' && (
+                     <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-[8px] font-bold text-yellow-300 animate-pulse whitespace-nowrap shadow-black drop-shadow-md">
+                        CHARGE!
+                     </div>
+                 )}
                </div>
              );
            })}
@@ -507,7 +566,12 @@ export const BattleZone: React.FC<BattleZoneProps> = ({ allies, level, phase, co
                    <div className="space-y-2 text-sm">
                        <div className="flex justify-between items-center bg-slate-900/50 px-2 py-1 rounded"><div className="flex items-center gap-2 text-slate-300"><Heart size={14} /> HP</div><span className="font-mono text-white">{Math.ceil(selectedEntity.hp)} / {selectedEntity.maxHp}</span></div>
                        <div className="flex justify-between items-center bg-slate-900/50 px-2 py-1 rounded"><div className="flex items-center gap-2 text-slate-300"><Sword size={14} /> ATK</div><span className="font-mono text-white">{selectedEntity.atk}</span></div>
-                       <div className="flex justify-between items-center bg-slate-900/50 px-2 py-1 rounded"><div className="flex items-center gap-2 text-slate-300"><Shield size={14} /> DEF</div><span className="font-mono text-white">{selectedEntity.def}</span></div>
+                       <div className="flex justify-between items-center bg-slate-900/50 px-2 py-1 rounded"><div className="flex items-center gap-2 text-slate-300"><Shield size={14} /> DEF</div>
+                           <span className="font-mono text-white">
+                               {getEffectiveDef(selectedEntity)} 
+                               {selectedEntity.def !== getEffectiveDef(selectedEntity) && <span className="text-yellow-400 text-xs ml-1">(BUFF)</span>}
+                           </span>
+                       </div>
                        <div className="flex justify-between items-center bg-slate-900/50 px-2 py-1 rounded"><div className="flex items-center gap-2 text-slate-300"><Crosshair size={14} /> RANGE</div><span className="font-mono text-white">{selectedEntity.range > 2 ? 'LONG' : 'SHORT'}</span></div>
                    </div>
                </div>
