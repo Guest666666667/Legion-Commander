@@ -37,9 +37,18 @@ export interface GridItem {
   isMatched?: boolean;
 }
 
+export enum CommanderType {
+  CENTURION = 'CENTURION', // Default
+  ELF = 'ELF',             // Archer Buff
+  WARLORD = 'WARLORD',     // Infantry Buff
+  GUARDIAN = 'GUARDIAN',   // Shield Buff
+  VANGUARD = 'VANGUARD'    // Spear Buff
+}
+
 export interface BattleEntity extends EntityStats {
   id: string;
   type: UnitType;
+  subtype?: CommanderType; // For Commanders: differentiate between Centurion, Elf, etc.
   x: number; // 0-100% (Left to Right)
   y: number; // 0-100% (Top to Bottom)
   team: 'PLAYER' | 'ENEMY';
@@ -50,6 +59,9 @@ export interface BattleEntity extends EntityStats {
   // Special AI States (e.g. for Spear Charge)
   aiState?: 'WAITING' | 'CHARGING' | 'NORMAL';
   aiTimer?: number;
+
+  // Generic Buff System
+  buffs: string[]; // e.g. ['HEAL', 'RAGE']
 }
 
 export interface Projectile {
@@ -67,14 +79,9 @@ export interface VisualEffect {
   id: string;
   x: number;
   y: number;
-  type: 'HIT' | 'EXPLOSION';
+  type: 'HIT' | 'EXPLOSION' | 'SLASH' | 'HEAL';
   createdAt: number;
   duration: number;
-}
-
-export enum CommanderType {
-  CENTURION = 'CENTURION',
-  ELF = 'ELF'
 }
 
 export interface CommanderProfile {

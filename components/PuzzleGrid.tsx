@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { GameState, GridItem, UnitType, CommanderType } from '../types';
 import { UnitIcon } from './UnitIcon';
@@ -503,7 +502,11 @@ export const PuzzleGrid: React.FC<PuzzleGridProps> = ({ gameState, onSummon, onM
                    hover:bg-white/5
                  `}
                >
-                 <UnitIcon type={item.type} isUpgraded={isUpgraded} />
+                 <UnitIcon 
+                    type={item.type} 
+                    subtype={isCommander ? gameState.commanderType : undefined}
+                    isUpgraded={isUpgraded} 
+                 />
                  {isValidTarget && (
                     <div className="absolute inset-0 flex items-center justify-center z-20">
                         <div className="w-full h-full border-4 border-white/60 rounded-md animate-pulse shadow-[0_0_15px_rgba(255,255,255,0.4)]"></div>

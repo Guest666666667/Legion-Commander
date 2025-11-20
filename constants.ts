@@ -11,13 +11,13 @@ export const VICTORY_DELAY_MS = 2000;
 // DEBUG: Define units to spawn immediately with the Commander at game start
 export const INITIAL_ARMY_CONFIG: UnitType[] = [
     // UnitType.INFANTRY,
-    UnitType.SPEAR,
+    // UnitType.SPEAR,
     // UnitType.ARCHER,
-    // UnitType.SHIELD
+    UnitType.SHIELD
 ];
 
 // Steps per level: [Level 1, Level 2, ..., Level 6]
-export const LEVEL_STEPS = [10, 12, 15, 18, 21, 25];
+export const LEVEL_STEPS = [1, 12, 15, 18, 21, 25];
 
 export const SCORING = {
   VICTORY_BONUS: 5000,
@@ -58,6 +58,30 @@ export const COMMANDERS: Record<CommanderType, CommanderProfile> = {
     description: "A master of long-range warfare.",
     skillName: "Eagle Eye",
     skillDesc: "All friendly Archers gain +50% Attack Range."
+  },
+  [CommanderType.WARLORD]: {
+    id: CommanderType.WARLORD,
+    name: "Iron Warlord",
+    role: "Berserker",
+    description: "A brutal commander who leads from the front.",
+    skillName: "Bloodlust",
+    skillDesc: "Friendly Infantry gain +1 Range and cause heavy impact."
+  },
+  [CommanderType.GUARDIAN]: {
+    id: CommanderType.GUARDIAN,
+    name: "High Guardian",
+    role: "Protector",
+    description: "A stalwart defender of the weak.",
+    skillName: "Phalanx",
+    skillDesc: "Friendly Shield units regenerate HP over time."
+  },
+  [CommanderType.VANGUARD]: {
+    id: CommanderType.VANGUARD,
+    name: "Storm Vanguard",
+    role: "Shock Trooper",
+    description: "A lightning-fast initiator.",
+    skillName: "Blitzkrieg",
+    skillDesc: "Friendly Spear units gain +MaxHP and +MoveSpeed."
   }
 };
 
@@ -136,7 +160,7 @@ export const REWARD_DEFINITIONS: Record<string, RewardDef> = {
 export interface LevelConfig {
   difficultyMult: number; // Multiplier for Enemy Stats and Size
   unitCounts: Partial<Record<UnitType, number>>; // Enemy composition
-  commanderCount: number;
+  enemyCommanders: CommanderType[];
 }
 
 export const GAME_LEVELS: LevelConfig[] = [
@@ -144,36 +168,36 @@ export const GAME_LEVELS: LevelConfig[] = [
     // Level 1: Basic Melee + Range
     difficultyMult: 1.0, 
     unitCounts: { [UnitType.INFANTRY]: 1, [UnitType.ARCHER]: 3 }, 
-    commanderCount: 0 
+    enemyCommanders: [] 
   },
   { 
     // Level 2: Unlock Shield
     difficultyMult: 1.05, 
     unitCounts: { [UnitType.INFANTRY]: 4, [UnitType.ARCHER]: 2 }, 
-    commanderCount: 0 
+    enemyCommanders: [] 
   },
   { 
     // Level 3: Unlock Spear
     difficultyMult: 1.1, 
     unitCounts: { [UnitType.INFANTRY]: 6, [UnitType.ARCHER]: 4, [UnitType.SHIELD]: 1 }, 
-    commanderCount: 0 
+    enemyCommanders: [] 
   },
   { 
-    // Level 4: Introduce Commander
+    // Level 4: Introduce Commander (Centurion)
     difficultyMult: 1.15, 
     unitCounts: { [UnitType.INFANTRY]: 9, [UnitType.ARCHER]: 7, [UnitType.SHIELD]: 3, [UnitType.SPEAR]: 1 }, 
-    commanderCount: 0 
+    enemyCommanders: [CommanderType.CENTURION] 
   },
   { 
     // Level 5: Two Commanders
     difficultyMult: 1.2, 
     unitCounts: { [UnitType.INFANTRY]: 12, [UnitType.ARCHER]: 10, [UnitType.SHIELD]: 7, [UnitType.SPEAR]: 3 }, 
-    commanderCount: 1 
+    enemyCommanders: [CommanderType.WARLORD] 
   },
   { 
-    // Level 6: Boss Rush (4 Commanders)
+    // Level 6: Boss Rush
     difficultyMult: 1.25, 
     unitCounts: { [UnitType.INFANTRY]: 18, [UnitType.ARCHER]: 15, [UnitType.SHIELD]: 10, [UnitType.SPEAR]: 6 }, 
-    commanderCount: 2 
+    enemyCommanders: [CommanderType.GUARDIAN, CommanderType.ELF] 
   }
 ];
