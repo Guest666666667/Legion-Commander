@@ -68,6 +68,7 @@ export interface GridItem {
   row: number;
   col: number;
   isMatched?: boolean;
+  isNew?: boolean; // Flag to trigger entry animations only on spawn
 }
 
 export interface BattleEntity extends EntityStats {

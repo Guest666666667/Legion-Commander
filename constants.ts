@@ -7,6 +7,7 @@ export const MAX_GRID_SIZE = 5;
 export const LEVELS_PER_RUN = 6;
 export const DEFAULT_SPEED_MULTIPLIER = 3;
 export const VICTORY_DELAY_MS = 2000;
+export const MAX_PER_UNIT_COUNT = 6; // Max number of units PER TYPE to carry over (e.g., max 6 Archers, max 6 Infantry)
 
 // DEBUG: Define units to spawn immediately with the Commander at game start
 export const INITIAL_ARMY_CONFIG: UnitType[] = [
@@ -133,7 +134,7 @@ export const UNIT_UPGRADES: Partial<Record<UnitType, Partial<EntityStats>>> = {
 // NEW: Centralized Buff Configuration
 // Defines the numerical impact of specific buff keys
 export const BUFF_CONFIG: Record<string, BuffStats> = {
-  'FRENZY': { maxHp: 50, hp: 50, range: 1, label: 'Bloodlust', description: 'Increase MaxHP and Melee range.', isCommanderBuff: true }, // Warlord Buff
+  'FRENZY': { maxHp: 50, hp: 50, range: 1.5, label: 'Bloodlust', description: 'Increase MaxHP and Melee range.', isCommanderBuff: true }, // Warlord Buff
   'HEAL': { hpRegen: 0.02, label: 'Regeneration', description: 'Restores 2% HP per second.', isCommanderBuff: true }, // Guardian Buff
   'ELF_RANGE': { range: 3, atkSpeed: -500, label: 'Eagle Eye', description: 'Massively increase Attack Range and Attack Speed.', isCommanderBuff: true }, // Elf Passive
   'SPEAR_CHARGE': { def: 15, moveSpeed: 0.25, label: 'Phalanx Charge', description: 'Massively increase Defense and MoveSpeed.' }, // Spear Charge state (Not a commander passive)

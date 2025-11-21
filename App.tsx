@@ -4,7 +4,7 @@ import {
   GameState, Phase, UnitType, GridItem 
 } from './types';
 import { 
-  INITIAL_GRID_SIZE, LEVELS_PER_RUN, MAX_GRID_SIZE, LEVEL_STEPS, REWARD_DEFINITIONS, INITIAL_ARMY_CONFIG
+  INITIAL_GRID_SIZE, LEVELS_PER_RUN, MAX_GRID_SIZE, LEVEL_STEPS, REWARD_DEFINITIONS, INITIAL_ARMY_CONFIG, MAX_PER_UNIT_COUNT
 } from './constants';
 
 // Components
@@ -186,7 +186,7 @@ const App: React.FC = () => {
         setGameState(prev => ({ 
           ...prev, 
           phase: Phase.REWARD,
-          survivors: survivingUnits, // Store survivors for next level
+          survivors: survivingUnits, // Store survivors for display/score, NOT for next level roster
           rewardsRemaining: prev.maxRewardSelections,
           currentRewardIds: rewardOptions,
           scoreStats: nextScoreStats
@@ -238,6 +238,22 @@ const App: React.FC = () => {
       const nextLevel = prev.currentLevel + 1;
       const nextSteps = LEVEL_STEPS[nextLevel - 1] || 10;
 
+      // RESTORE ARMY LOGIC:
+      // 1. Separate Commander and Soldiers from previous roster
+      const soldiersToProcess = prev.summonQueue.filter(u => !u.startsWith('COMMANDER_'));
+      
+      // 2. Filter Soldiers by Per-Type Limit
+      const typeCounts: Record<string, number> = {};
+      const restoredSoldiers: UnitType[] = [];
+
+      for (const unit of soldiersToProcess) {
+         const currentCount = typeCounts[unit] || 0;
+         if (currentCount < MAX_PER_UNIT_COUNT) {
+             restoredSoldiers.push(unit);
+             typeCounts[unit] = currentCount + 1;
+         }
+      }
+
       return {
         ...prev,
         gridSize: newSize,
@@ -252,7 +268,7 @@ const App: React.FC = () => {
         stepsRemaining: nextSteps,
         reshufflesUsed: 0,
         phase: Phase.PUZZLE, 
-        summonQueue: [prev.commanderUnitType, ...prev.survivors], 
+        summonQueue: [prev.commanderUnitType, ...restoredSoldiers], // Full army restored + Commander
         survivors: [], 
         currentRewardIds: []
       };
@@ -341,6 +357,7 @@ const App: React.FC = () => {
           upgrades={gameState.upgrades}
           rewardsHistory={gameState.rewardsHistory}
           survivors={gameState.survivors}
+          roster={gameState.summonQueue}
         />
       )}
       

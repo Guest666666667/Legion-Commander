@@ -1,8 +1,9 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { BattleEntity, Phase, UnitType, Projectile, VisualEffect, CommanderClass } from '../../types';
-import { UNIT_STATS, GAME_LEVELS, UNIT_UPGRADES, VICTORY_DELAY_MS, BUFF_CONFIG, DEFAULT_SPEED_MULTIPLIER } from '../../constants';
-import { getSpawnX, calculateEntityStats } from './battleUtils';
+import { UNIT_STATS, GAME_LEVELS, VICTORY_DELAY_MS, DEFAULT_SPEED_MULTIPLIER } from '../../constants';
+import { createBattleEntity, calculateEntityStats, findNearestTarget, isInRange, calculateDamage, calculateMovement } from './battleUtils';
+import { updateEntityBehavior, syncEntityStateBuffs, processRegeneration } from './entityBehaviors';
 
 interface UseBattleLoopProps {
     allies: UnitType[];
@@ -35,60 +36,36 @@ export const useBattleLoop = ({ allies, level, phase, commanderUnitType, upgrade
         const configIndex = Math.min(level - 1, GAME_LEVELS.length - 1);
         const config = GAME_LEVELS[configIndex];
 
-        // Pre-calculate Enemy Commander presence for Spawn Logic
+        // Pre-calculate Enemy Commander presence
         const hasEnemyWarlord = config.enemyCommanders?.includes(UnitType.COMMANDER_WARLORD);
         const hasEnemyGuardian = config.enemyCommanders?.includes(UnitType.COMMANDER_GUARDIAN);
         const hasEnemyElf = config.enemyCommanders?.includes(UnitType.COMMANDER_ELF);
         const hasEnemyVanguard = config.enemyCommanders?.includes(UnitType.COMMANDER_VANGUARD);
 
         const spawnEnemy = (type: UnitType) => {
-            const baseStats = UNIT_STATS[type];
-            if (!baseStats) return;
-            const enemyScale = (baseStats.scale || 1) * config.difficultyMult;
-
-            // Apply Commander Passives (Enemy) - AT SPAWN
             const initialBuffs: string[] = [];
+            
+            // Apply Commander Passives (Enemy)
             if (type === UnitType.INFANTRY && hasEnemyWarlord) initialBuffs.push('FRENZY');
             if (type === UnitType.SHIELD && hasEnemyGuardian) initialBuffs.push('HEAL');
             if (type === UnitType.ARCHER && hasEnemyElf) initialBuffs.push('ELF_RANGE');
             if (type === UnitType.SPEAR && hasEnemyVanguard) initialBuffs.push('VANGUARD_PASSIVE');
 
-            let currentHp = Math.floor(baseStats.maxHp * config.difficultyMult);
-            
-            // Generic: Apply Initial HP Modifiers from Buffs
-            initialBuffs.forEach(buffId => {
-                const buffConfig = BUFF_CONFIG[buffId];
-                if (buffConfig && buffConfig.hp) {
-                    currentHp += buffConfig.hp;
-                }
-            });
-
-            initialEnemies.push({
-                ...baseStats,
-                maxHp: Math.floor(baseStats.maxHp * config.difficultyMult), // Base MaxHP (Buffs added dynamically in calc)
-                hp: currentHp,
-                atk: Math.floor(baseStats.atk * config.difficultyMult),
-                scale: enemyScale,
-                id: `e-${level}-${type}-${idCounter++}`,
-                type: type,
-                team: 'ENEMY',
-                x: getSpawnX(type, 'ENEMY'),
-                y: 20 + (Math.random() * 60),
-                targetId: null,
-                lastAttackTime: 0,
-                lastHitTime: 0,
-                aiState: type === UnitType.SPEAR ? 'WAITING' : 'NORMAL',
-                aiTimer: 0,
-                buffs: initialBuffs
-            });
+            const entity = createBattleEntity(
+                `e-${level}-${type}-${idCounter++}`,
+                type,
+                'ENEMY',
+                initialBuffs,
+                [], // Enemies don't have upgrades yet
+                config.difficultyMult
+            );
+            initialEnemies.push(entity);
         };
 
-        // Spawn Standard Enemies
+        // Spawn Enemies
         Object.entries(config.unitCounts).forEach(([typeStr, count]) => {
             for (let i = 0; i < count; i++) spawnEnemy(typeStr as UnitType);
         });
-
-        // Spawn Enemy Commanders
         config.enemyCommanders?.forEach(spawnEnemy);
         
         setEntities(initialEnemies);
@@ -109,54 +86,23 @@ export const useBattleLoop = ({ allies, level, phase, commanderUnitType, upgrade
             const playerCmdClass = UNIT_STATS[commanderUnitType]?.commanderClass;
 
             newUnits.forEach((type, idx) => {
-                const base = UNIT_STATS[type];
-                let stats = { ...base };
                 const initialBuffs: string[] = [];
-                let currentHp = stats.maxHp;
-
-                // Apply Upgrades
-                if (upgrades.includes(type)) {
-                    const bonus = UNIT_UPGRADES[type];
-                    if (bonus) {
-                        stats.maxHp += (bonus.hp || 0);
-                        currentHp += (bonus.hp || 0);
-                        stats.hp = currentHp;
-                        stats.atk += (bonus.atk || 0);
-                        stats.def += (bonus.def || 0);
-                        stats.moveSpeed += (bonus.moveSpeed || 0);
-                        if (bonus.scale) stats.scale = bonus.scale;
-                    }
-                }
                 
-                // Apply Commander Passives (Player) - AT SPAWN
+                // Apply Commander Passives (Player)
                 if (type === UnitType.INFANTRY && playerCmdClass === CommanderClass.WARLORD) initialBuffs.push('FRENZY');
                 if (type === UnitType.SHIELD && playerCmdClass === CommanderClass.GUARDIAN) initialBuffs.push('HEAL');
                 if (type === UnitType.ARCHER && playerCmdClass === CommanderClass.ELF) initialBuffs.push('ELF_RANGE');
                 if (type === UnitType.SPEAR && playerCmdClass === CommanderClass.VANGUARD) initialBuffs.push('VANGUARD_PASSIVE');
 
-                // Generic: Apply Initial HP Modifiers from Buffs
-                initialBuffs.forEach(buffId => {
-                    const buffConfig = BUFF_CONFIG[buffId];
-                    if (buffConfig && buffConfig.hp) {
-                        currentHp += buffConfig.hp;
-                    }
-                });
-
-                newEntities.push({
-                    ...stats,
-                    hp: currentHp, // Explicitly set to calculated total
-                    id: `p-${Date.now()}-${idx}`,
+                const entity = createBattleEntity(
+                    `p-${Date.now()}-${idx}`,
                     type,
-                    team: 'PLAYER',
-                    x: getSpawnX(type, 'PLAYER'),
-                    y: 20 + (Math.random() * 60),
-                    targetId: null,
-                    lastAttackTime: 0,
-                    lastHitTime: 0,
-                    aiState: type === UnitType.SPEAR ? 'WAITING' : 'NORMAL',
-                    aiTimer: 0,
-                    buffs: initialBuffs
-                });
+                    'PLAYER',
+                    initialBuffs,
+                    upgrades,
+                    1.0
+                );
+                newEntities.push(entity);
             });
 
             setEntities(prev => [...prev, ...newEntities]);
@@ -186,7 +132,7 @@ export const useBattleLoop = ({ allies, level, phase, commanderUnitType, upgrade
 
     const updateEntities = (time: number, delta: number) => {
         setEntities(prevEnts => {
-            // 1. Handle Deaths
+            // 1. Handle Deaths (Count logic)
             prevEnts.forEach(e => {
                 if (e.hp <= 0 && e.team === 'ENEMY' && !processedDeathsRef.current.has(e.id)) {
                     processedDeathsRef.current.add(e.id);
@@ -194,121 +140,98 @@ export const useBattleLoop = ({ allies, level, phase, commanderUnitType, upgrade
                 }
             });
 
-            let activeEnts = prevEnts.filter(e => e.hp > 0);
-            const players = activeEnts.filter(e => e.team === 'PLAYER');
-            const enemies = activeEnts.filter(e => e.team === 'ENEMY');
+            // Filter out dead soldiers, but KEEP dead Commanders (Downed State)
+            const nextEnts = prevEnts.filter(e => {
+                if (e.hp > 0) return true;
+                // Keep commanders even if HP <= 0
+                if (e.type.startsWith('COMMANDER_')) return true;
+                return false;
+            });
+
+            const activePlayers = nextEnts.filter(e => e.team === 'PLAYER' && e.hp > 0);
+            const activeEnemies = nextEnts.filter(e => e.team === 'ENEMY' && e.hp > 0);
 
             // 2. Victory/Defeat Check
             if (!isBattleEndingRef.current) {
-                if (players.length === 0 && enemies.length > 0) {
+                if (activePlayers.length === 0 && activeEnemies.length > 0) {
                     isBattleEndingRef.current = true;
                     onBattleEnd(false, [], killsRef.current);
-                } else if (enemies.length === 0 && players.length > 0) {
+                } else if (activeEnemies.length === 0 && activePlayers.length > 0) {
                     isBattleEndingRef.current = true;
                     setTimeout(() => {
-                        const survivors = players.filter(p => !p.type.startsWith('COMMANDER_')).map(p => p.type);
-                        onBattleEnd(true, survivors, killsRef.current);
+                        // Exclude Commanders from the "Survivors" list passed to UI
+                        const survivorUnits = activePlayers
+                            .filter(p => !p.type.startsWith('COMMANDER_'))
+                            .map(p => p.type);
+                        
+                        onBattleEnd(true, survivorUnits, killsRef.current);
                     }, VICTORY_DELAY_MS);
-                } else if (players.length === 0 && enemies.length === 0 && prevEnts.length > 0) {
+                } else if (activePlayers.length === 0 && activeEnemies.length === 0 && prevEnts.length > 0) {
                      isBattleEndingRef.current = true;
                      onBattleEnd(false, [], killsRef.current);
                 }
             }
 
             // 3. Process Individual Entities
-            activeEnts.forEach(entity => {
-                const isPlayer = entity.team === 'PLAYER';
+            nextEnts.forEach(entity => {
+                // Skip update logic if dead/downed
+                if (entity.hp <= 0) return;
 
-                // --- Apply Spear Charge Buff State (State Machine) ---
-                if (entity.type === UnitType.SPEAR) {
-                    const isCharging = entity.aiState === 'WAITING' || entity.aiState === 'CHARGING';
-                    const buffId = 'SPEAR_CHARGE';
-                    const hasBuff = entity.buffs.includes(buffId);
-                    
-                    if (isCharging && !hasBuff) entity.buffs.push(buffId);
-                    else if (!isCharging && hasBuff) entity.buffs = entity.buffs.filter(b => b !== buffId);
-                }
-
-                // --- Calculate Effective Stats (Base + Upgrades + Buffs) ---
-                const stats = calculateEntityStats(entity);
-
-                // --- Process Ticks (Heal) ---
-                if (entity.buffs.includes('HEAL')) {
-                    const regen = BUFF_CONFIG['HEAL'].hpRegen || 0.02;
-                    if (entity.hp < stats.maxHp) {
-                        const healAmount = (stats.maxHp * regen) * (delta / 1000) * speedMultiplier;
-                        entity.hp = Math.min(stats.maxHp, entity.hp + healAmount);
-                        if (Math.random() < 0.01 * speedMultiplier) {
-                            setEffects(prev => [...prev, {
-                                id: `heal-${Date.now()}-${Math.random()}`,
-                                x: entity.x, y: entity.y - 2, type: 'HEAL', createdAt: time, duration: 600
-                            }]);
-                        }
-                    }
-                }
-
-                // --- Spear Charge State Machine ---
-                if (entity.type === UnitType.SPEAR && entity.aiState && entity.aiState !== 'NORMAL') {
-                    entity.aiTimer = (entity.aiTimer || 0) + (delta * speedMultiplier);
-                    if (entity.aiState === 'WAITING') {
-                        if (entity.aiTimer >= 2000) entity.aiState = 'CHARGING';
-                        return; // Skip targeting/attacking while waiting
-                    }
-                    if (entity.aiState === 'CHARGING') {
-                        const targetX = entity.team === 'PLAYER' ? 90 : 10;
-                        const distToTarget = Math.abs(targetX - entity.x);
-                        
-                        const chargeSpeed = stats.moveSpeed * (delta / 16) * speedMultiplier;
-                        
-                        const dir = Math.sign(targetX - entity.x);
-                        entity.x += dir * chargeSpeed;
-                        if (distToTarget < 2) entity.aiState = 'NORMAL';
-                        return; // Skip targeting/attacking while charging
-                    }
-                }
-
-                // --- Targeting & Combat ---
-                const targets = isPlayer ? enemies : players;
-                let minDist = 10000;
-                let bestTarget: BattleEntity | null = null;
+                // A. Dynamic Stats Calculation
+                const effectiveStats = calculateEntityStats(entity.type, entity.buffs, entity.team === 'PLAYER' ? upgrades : [], entity.team);
                 
-                targets.forEach(t => {
-                    const dist = Math.hypot(t.x - entity.x, t.y - entity.y);
-                    if (dist < minDist) { minDist = dist; bestTarget = t; }
-                });
+                entity.atk = effectiveStats.atk;
+                entity.def = effectiveStats.def;
+                entity.range = effectiveStats.range;
+                entity.moveSpeed = effectiveStats.moveSpeed;
+                entity.atkSpeed = effectiveStats.atkSpeed;
 
-                const target = bestTarget;
+                // B. Logic & AI State
+                updateEntityBehavior(entity, effectiveStats, delta, speedMultiplier);
+                syncEntityStateBuffs(entity);
+
+                // C. Passive Effects (Regen)
+                const regen = processRegeneration(entity, effectiveStats, delta, speedMultiplier);
+                if (regen.hpAmount > 0) {
+                    entity.hp = Math.min(entity.maxHp, entity.hp + regen.hpAmount);
+                    if (regen.shouldTriggerVfx) {
+                        setEffects(prev => [...prev, {
+                            id: `heal-${Date.now()}-${Math.random()}`,
+                            x: entity.x, y: entity.y - 2, type: 'HEAL', createdAt: time, duration: 600
+                        }]);
+                    }
+                }
+
+                // D. Skip Combat if in Special AI State
+                if (entity.aiState && entity.aiState !== 'NORMAL') return;
+
+                // E. Targeting (Find Nearest Alive Enemy)
+                const potentialTargets = entity.team === 'PLAYER' ? activeEnemies : activePlayers;
+                const target = findNearestTarget(entity, potentialTargets); // findNearestTarget already ignores dead/downed
                 entity.targetId = target ? target.id : null;
 
+                // F. Combat & Movement
                 if (target) {
-                    // Calculate Range Threshold based on Effective Stats
-                    let rangeThreshold = 5; // Base melee
-                    
-                    if (stats.range > 1.5) rangeThreshold = stats.range * 8; 
-                    
-                    const dist = Math.hypot(target.x - entity.x, target.y - entity.y);
-
-                    if (dist <= rangeThreshold) {
-                        // Attack - Use stats.atkSpeed (ms)
-                        const effectiveCooldown = stats.atkSpeed / speedMultiplier;
+                    if (isInRange(entity, target)) {
+                        // Attack
+                        const effectiveCooldown = entity.atkSpeed / speedMultiplier;
                         if (time - entity.lastAttackTime > effectiveCooldown) {
                             entity.lastAttackTime = time;
 
-                            if (stats.range > 3) {
-                                // Ranged
+                            if (entity.range > 3) {
+                                // Ranged Projectile
                                 setProjectiles(prev => [...prev, {
                                     id: `proj-${Date.now()}-${Math.random()}`,
                                     x: entity.x, y: entity.y,
                                     targetId: target.id,
-                                    damage: Math.max(1, stats.atk - calculateEntityStats(target).def), // Use effective Def of target
+                                    damage: calculateDamage(entity, target),
                                     speed: 0.08 * speedMultiplier,
                                     rotation: Math.atan2(target.y - entity.y, target.x - entity.x) * (180 / Math.PI),
                                     opacity: 1
                                 }]);
                             } else {
-                                // Melee
-                                const targetDef = calculateEntityStats(target).def;
-                                const dmg = Math.max(1, stats.atk - targetDef);
+                                // Melee Damage
+                                const dmg = calculateDamage(entity, target);
                                 target.hp -= dmg;
                                 target.lastHitTime = time;
                                 
@@ -323,16 +246,14 @@ export const useBattleLoop = ({ allies, level, phase, commanderUnitType, upgrade
                         }
                     } else {
                         // Move
-                        const moveSpeed = stats.moveSpeed * (delta / 16) * speedMultiplier;
-                        const vx = (target.x - entity.x) / dist;
-                        const vy = (target.y - entity.y) / dist;
-                        entity.x += vx * moveSpeed;
-                        entity.y += vy * moveSpeed;
+                        const nextPos = calculateMovement(entity, target, delta, speedMultiplier);
+                        entity.x = nextPos.x;
+                        entity.y = nextPos.y;
                     }
                 }
             });
 
-            return activeEnts;
+            return nextEnts;
         });
     };
 
@@ -345,6 +266,11 @@ export const useBattleLoop = ({ allies, level, phase, commanderUnitType, upgrade
                 let nextProjs: Projectile[] = [];
                 currentProjs.forEach(p => {
                     const target = nextEntities.find(e => e.id === p.targetId);
+                    
+                    // If target is dead/downed, projectile misses or fades (simple behavior: just allow hit even if overkill/downed)
+                    // But for "downed" commander, we shouldn't deal damage? 
+                    // Let's assume projectiles in flight still hit, but we check HP in damage calc.
+                    
                     let tx = p.x, ty = p.y;
                     let targetFound = false;
                     if (target) { tx = target.x; ty = target.y; targetFound = true; }
@@ -358,10 +284,12 @@ export const useBattleLoop = ({ allies, level, phase, commanderUnitType, upgrade
                     }
 
                     if (targetFound && dist < 2) {
-                        target!.hp -= p.damage;
-                        target!.lastHitTime = time;
-                        hitOccurred = true;
-                        setEffects(prev => [...prev, { id: `vfx-${Date.now()}-${Math.random()}`, x: target!.x, y: target!.y, type: 'HIT', createdAt: time, duration: 300 }]);
+                        if (target!.hp > 0) {
+                             target!.hp -= p.damage;
+                             target!.lastHitTime = time;
+                             hitOccurred = true;
+                             setEffects(prev => [...prev, { id: `vfx-${Date.now()}-${Math.random()}`, x: target!.x, y: target!.y, type: 'HIT', createdAt: time, duration: 300 }]);
+                        }
                     } else {
                         let moveAmt = p.speed * (delta / 16);
                         let newX = p.x, newY = p.y;

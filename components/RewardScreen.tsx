@@ -1,8 +1,8 @@
 
 import React, { useState } from 'react';
-import { CheckCircle, Info } from 'lucide-react';
+import { CheckCircle, Info, ArrowRight } from 'lucide-react';
 import { UnitType } from '../types';
-import { REWARD_DEFINITIONS } from '../constants';
+import { REWARD_DEFINITIONS, MAX_PER_UNIT_COUNT } from '../constants';
 import { UnitIcon } from './UnitIcon';
 
 interface RewardScreenProps {
@@ -12,22 +12,35 @@ interface RewardScreenProps {
   upgrades: UnitType[];
   rewardsHistory: Record<string, number>;
   survivors: UnitType[];
+  roster: UnitType[]; // Full army roster including those who died
 }
 
-export const RewardScreen: React.FC<RewardScreenProps> = ({ rewardIds, onSelect, selectionsLeft, upgrades, rewardsHistory, survivors }) => {
+export const RewardScreen: React.FC<RewardScreenProps> = ({ rewardIds, onSelect, selectionsLeft, upgrades, rewardsHistory, survivors, roster }) => {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [exiting, setExiting] = useState(false);
 
   // Calculate how many we can/must select. 
-  // Logic: If the game allows 2, but only 1 valid option is presented, user must select 1.
-  // If game allows 2 and 3 options exist, user must select 2.
   const maxSelectable = Math.min(selectionsLeft, rewardIds.length);
 
-  // Summarize survivors
+  // Count logic
   const survivorCounts = survivors.reduce((acc, type) => {
       acc[type] = (acc[type] || 0) + 1;
       return acc;
   }, {} as Record<string, number>);
+
+  const rosterCounts = roster.reduce((acc, type) => {
+      acc[type] = (acc[type] || 0) + 1;
+      return acc;
+  }, {} as Record<string, number>);
+
+  // Get all unique unit types present in the roster
+  // FILTER OUT COMMANDERS from this view as requested
+  const displayTypes = Object.keys(rosterCounts)
+      .filter(type => !type.startsWith('COMMANDER'))
+      .sort((a, b) => {
+          // Standard sort (Infantry first etc if needed, or just alphabetical)
+          return 0;
+      });
 
   const toggleSelection = (id: string) => {
     if (selectedIds.includes(id)) {
@@ -65,20 +78,47 @@ export const RewardScreen: React.FC<RewardScreenProps> = ({ rewardIds, onSelect,
           ${exiting ? '-translate-x-[120vw]' : 'animate-slide-in-right'}
       `}>
           
-          {/* HEADER with Survivors */}
+          {/* HEADER with Unit Restoration */}
           <div className="bg-slate-800 p-4 border-b border-slate-700 text-center">
-            <h2 className="text-2xl font-black text-yellow-500 tracking-widest mb-2">VICTORY</h2>
+            <h2 className="text-2xl font-black text-yellow-500 tracking-widest mb-3">VICTORY</h2>
             
-            <div className="flex justify-center gap-3 mb-2">
-                {Object.entries(survivorCounts).map(([type, count]) => (
-                    <div key={type} className="flex flex-col items-center bg-slate-900/50 p-1 rounded border border-slate-700 w-10">
-                        <div className="w-6 h-6 mb-1">
-                             <UnitIcon type={type as UnitType} isUpgraded={upgrades.includes(type as UnitType)} />
+            <div className="flex justify-center gap-2 mb-3 flex-wrap">
+                {displayTypes.map((type) => {
+                    const rawTotal = rosterCounts[type] || 0;
+                    // VISUAL FIX: Clamp the total to the max allowed per unit.
+                    const effectiveTotal = Math.min(rawTotal, MAX_PER_UNIT_COUNT);
+                    
+                    const survived = survivorCounts[type] || 0;
+                    
+                    // Logic for display states
+                    const isRestoring = survived < effectiveTotal;
+                    const isCulling = survived > effectiveTotal;
+                    
+                    return (
+                        <div key={type} className="flex flex-col items-center bg-slate-900/80 p-1.5 rounded border border-slate-700 w-14">
+                            <div className="w-6 h-6 mb-1">
+                                 <UnitIcon type={type as UnitType} isUpgraded={upgrades.includes(type as UnitType)} />
+                            </div>
+                            <div className="flex items-center justify-center gap-0.5 text-[10px] font-mono font-bold w-full">
+                                {isRestoring ? (
+                                    <>
+                                        <span className="text-red-400">{survived}</span>
+                                        <ArrowRight size={8} className="text-slate-500" />
+                                        <span className="text-green-400">{effectiveTotal}</span>
+                                    </>
+                                ) : isCulling ? (
+                                    <>
+                                        <span className="text-yellow-400">{survived}</span>
+                                        <ArrowRight size={8} className="text-slate-500" />
+                                        <span className="text-slate-300">{effectiveTotal}</span>
+                                    </>
+                                ) : (
+                                    <span className="text-slate-200 text-xs">{effectiveTotal}</span>
+                                )}
+                            </div>
                         </div>
-                        <span className="text-[10px] font-mono text-white">{count}</span>
-                    </div>
-                ))}
-                {survivors.length === 0 && <span className="text-xs text-slate-500 italic">Only yourself...</span>}
+                    );
+                })}
             </div>
 
             <p className="text-slate-400 text-[10px] uppercase tracking-wide">
