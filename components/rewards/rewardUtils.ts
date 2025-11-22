@@ -1,14 +1,15 @@
 
-import { GameState, UnitType, Phase } from '../../types';
-import { MAX_GRID_SIZE, MAX_PER_UNIT_COUNT } from '../../constants';
-import { REWARD_DEFINITIONS } from './rewardConfig';
+import { GameState, UnitType, Phase, Rarity } from '../../types';
+import { MAX_PER_UNIT_COUNT } from '../../constants';
+import { REWARD_DEFINITIONS, DEBUG_REWARD_POOL, MAX_REWARD_OPTIONS, DEFAULT_RARITY_WEIGHTS, ELITE_RARITY_WEIGHTS } from './rewardConfig';
 
 /**
  * Helper: Calculate the Gem cost for a set of selected rewards,
  * accounting for the "Free Selections" allowance.
  * 
  * Logic: The player gets `freePicks` number of items for FREE.
- * To be player-friendly, we automatically discount the MOST EXPENSIVE items.
+ * To balance the economy, we automatically discount the CHEAPEST items.
+ * The player must pay for the more expensive ones.
  */
 export const calculateTransactionCost = (selectedIds: string[], freePicks: number): number => {
     if (selectedIds.length <= freePicks) return 0;
@@ -16,67 +17,139 @@ export const calculateTransactionCost = (selectedIds: string[], freePicks: numbe
     // Get all costs
     const costs = selectedIds
         .map(id => REWARD_DEFINITIONS[id]?.cost || 0)
-        .sort((a, b) => b - a); // Descending: [500, 200, 50]
+        .sort((a, b) => a - b); // Ascending: [50, 150, 500]
 
-    // Remove the top N (Free picks)
+    // Remove the top N (Free picks - the cheapest ones)
     const costsToPay = costs.slice(freePicks);
 
-    // Sum the rest
+    // Sum the rest (The expensive ones)
     return costsToPay.reduce((sum, c) => sum + c, 0);
 };
 
 /**
- * Randomly generates 3 unique reward options based on the current state/history.
+ * Randomly generates unique reward options based on rarity probabilities.
+ * Weights are configurable in rewardConfig.ts.
  */
 export const generateRewardOptions = (currentState: GameState): string[] => {
-    const pool: string[] = [];
-    const history = currentState.rewardsHistory || {};
-
-    // EXPAND (Max 2 times allowed total)
-    if (currentState.gridSize < MAX_GRID_SIZE && (history['EXPAND'] || 0) < 2) {
-        pool.push('EXPAND');
-    }
-    
-    // SCAVENGER (Unlimited)
-    pool.push('SCAVENGER');
-
-    // LIMIT_BREAK (Unlimited)
-    pool.push('LIMIT_BREAK');
-
-    // AGILITY (Max 1 time - adds +1 range)
-    if ((history['AGILITY'] || 0) < 1) {
-        pool.push('AGILITY');
-    }
-    
-    // REINFORCE (Max 1 time)
-    if ((history['REINFORCE'] || 0) < 1) {
-        pool.push('REINFORCE');
+    // DEBUG OVERRIDE
+    if (DEBUG_REWARD_POOL.length > 0) {
+        return [...DEBUG_REWARD_POOL];
     }
 
-    // REMODEL (Max 4 times)
-    if (currentState.remodelLevel < 4) {
-        pool.push('REMODEL');
-    }
+    const { rewardOptionsCount, rewardsHistory, currentLevel, blockCommonRewards } = currentState;
+    const generatedIds: string[] = [];
 
-    // GREED (Max 1 time)
-    if ((history['GREED'] || 0) < 1) {
-        pool.push('GREED');
-    }
+    // 1. Build Available Pools by Rarity
+    // We filter out items that have reached their maxLimit
+    const pools: Record<Rarity, string[]> = {
+        [Rarity.COMMON]: [],
+        [Rarity.RARE]: [],
+        [Rarity.EPIC]: [],
+        [Rarity.MYTHIC]: []
+    };
 
-    // UPGRADES (Max 1 per type)
-    [UnitType.INFANTRY, UnitType.ARCHER, UnitType.SHIELD, UnitType.SPEAR].forEach(type => {
-        if (!currentState.upgrades.includes(type)) {
-            pool.push(`UPGRADE_${type}`);
+    Object.values(REWARD_DEFINITIONS).forEach(def => {
+        const currentCount = rewardsHistory[def.id] || 0;
+        if (def.maxLimit !== undefined && currentCount >= def.maxLimit) {
+            return;
         }
+        // If Common rewards are blocked, do not add them to the pool
+        if (blockCommonRewards && def.rarity === Rarity.COMMON) {
+            return;
+        }
+        pools[def.rarity].push(def.id);
     });
 
-    // Shuffle and pick 3
-    for (let i = pool.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [pool[i], pool[j]] = [pool[j], pool[i]];
+    // --- HELPER: Pick Random ID from Pool (with Fallback) ---
+    const pickRandom = (rarity: Rarity): string | null => {
+        const pool = pools[rarity];
+        if (pool.length > 0) {
+            return pool[Math.floor(Math.random() * pool.length)];
+        }
+        // Fallback chain if target pool is empty
+        if (rarity === Rarity.MYTHIC) return pickRandom(Rarity.EPIC);
+        if (rarity === Rarity.EPIC) return pickRandom(Rarity.RARE);
+        if (rarity === Rarity.RARE) return pickRandom(Rarity.COMMON);
+        return null;
+    };
+
+    // --- GUARANTEED REWARDS ---
+
+    // Level 3 Victory: Guaranteed 'EXPAND'. 
+    // If 'EXPAND' is not available (maxed out), replace with a Random Mythic.
+    if (currentLevel === 3) {
+        const expandDef = REWARD_DEFINITIONS['EXPAND'];
+        const expandCount = rewardsHistory['EXPAND'] || 0;
+        const isExpandAvailable = expandDef && (expandDef.maxLimit === undefined || expandCount < expandDef.maxLimit);
+
+        if (isExpandAvailable) {
+            generatedIds.push('EXPAND');
+        } else {
+            const fallback = pickRandom(Rarity.MYTHIC);
+            if (fallback) generatedIds.push(fallback);
+        }
     }
+
+    // Level 5 Victory: Guaranteed Random Mythic.
+    if (currentLevel === 5) {
+        const mythic = pickRandom(Rarity.MYTHIC);
+        if (mythic) generatedIds.push(mythic);
+    }
+
+    // 2. Determine remaining slots to fill
+    const slotsRemaining = Math.max(0, rewardOptionsCount - generatedIds.length);
     
-    return pool.slice(0, 3);
+    // 3. Determine target rarities for each remaining slot based on weights
+    const weights = blockCommonRewards ? ELITE_RARITY_WEIGHTS : DEFAULT_RARITY_WEIGHTS;
+    
+    const targetRarities: Rarity[] = [];
+    
+    for (let i = 0; i < slotsRemaining; i++) {
+        const roll = Math.random() * 100;
+        let cumulative = 0;
+        let selectedRarity = Rarity.COMMON;
+
+        // Iterate through weights config to find the range
+        for (const [rarityKey, weight] of Object.entries(weights)) {
+            cumulative += weight;
+            if (roll < cumulative) {
+                selectedRarity = rarityKey as Rarity;
+                break;
+            }
+        }
+        targetRarities.push(selectedRarity);
+    }
+
+    // 4. Select Rewards
+    targetRarities.forEach(rarity => {
+        let pool = pools[rarity];
+
+        // Fallback: If the target rarity pool is empty (e.g. no more Mythics left),
+        // we must pick from ANY remaining valid pool to fill the slot.
+        if (pool.length === 0) {
+            const allRemaining = [
+                ...pools[Rarity.COMMON],
+                ...pools[Rarity.RARE],
+                ...pools[Rarity.EPIC],
+                ...pools[Rarity.MYTHIC]
+            ];
+
+            if (allRemaining.length > 0) {
+                const fallbackId = allRemaining[Math.floor(Math.random() * allRemaining.length)];
+                generatedIds.push(fallbackId);
+            }
+            return;
+        }
+
+        // Pick a random item from the target pool
+        const randIndex = Math.floor(Math.random() * pool.length);
+        const selectedId = pool[randIndex];
+        generatedIds.push(selectedId);
+
+        // We DO NOT remove from source pool, allowing duplicates in the same batch
+    });
+
+    return generatedIds;
 };
 
 /**
@@ -94,38 +167,93 @@ export const applyRewardsAndRestoreArmy = (
 ): Partial<GameState> => {
     // 0. Calculate Cost & Deduct Gems
     const cost = calculateTransactionCost(selectedRewardIds, prevState.maxRewardSelections);
-    const newGems = Math.max(0, prevState.gems - cost);
+    let newGems = Math.max(0, prevState.gems - cost);
 
+    // State Modifications
     let newSize = prevState.gridSize;
     let newScavenger = prevState.scavengerLevel;
     let newMaxRewards = prevState.maxRewardSelections;
     let newMoveRange = prevState.commanderMoveRange;
     let newRemodelLevel = prevState.remodelLevel;
     let newArmyLimitBonus = prevState.armyLimitBonus || 0;
+    let newRewardOptionsCount = prevState.rewardOptionsCount;
+    let newBlockCommonRewards = prevState.blockCommonRewards;
+    
     const currentUpgrades = [...prevState.upgrades];
     const newHistory = { ...prevState.rewardsHistory };
+    const extraUnits: UnitType[] = [];
     
     // 1. Apply Selections
     selectedRewardIds.forEach(rewardId => {
       newHistory[rewardId] = (newHistory[rewardId] || 0) + 1;
 
-      if (rewardId === 'EXPAND' && newSize < MAX_GRID_SIZE) {
-          newSize += 1;
-      } else if (rewardId === 'SCAVENGER') {
-          newScavenger += 1;
-      } else if (rewardId === 'GREED') {
-          newMaxRewards += 1;
-      } else if (rewardId === 'AGILITY') {
-          newMoveRange += 1;
-      } else if (rewardId === 'REMODEL') {
-          newRemodelLevel += 1;
-      } else if (rewardId === 'LIMIT_BREAK') {
-          newArmyLimitBonus += 1;
-      } else if (rewardId.startsWith('UPGRADE_')) {
-          const type = rewardId.replace('UPGRADE_', '') as UnitType;
-          if (!currentUpgrades.includes(type)) {
-              currentUpgrades.push(type);
-          }
+      // Handle standard rewards via Switch for cleanliness
+      switch (rewardId) {
+          case 'EXPAND':
+              newSize += 1;
+              break;
+          case 'SCAVENGER':
+              newScavenger += 1;
+              break;
+          case 'GREED':
+              newMaxRewards += 1;
+              break;
+          case 'AGILITY':
+              newMoveRange += 1;
+              break;
+          case 'REMODEL':
+              newRemodelLevel += 1;
+              break;
+          case 'LIMIT_BREAK':
+              newArmyLimitBonus += 1;
+              break;
+          case 'FORTUNE':
+              newRewardOptionsCount = Math.min(MAX_REWARD_OPTIONS, newRewardOptionsCount + 1);
+              break;
+          case 'QUALITY_CONTROL':
+              newBlockCommonRewards = true;
+              break;
+          case 'REINFORCE':
+              // Passive effect checked in Puzzle Logic, just needs history update (done above)
+              break;
+          
+          // --- COMMON REWARDS ---
+          case 'GEMS_SMALL':
+              // Generate random 50-100
+              newGems += Math.floor(Math.random() * 101) + 50; 
+              break;
+          case 'GEMS_MEDIUM':
+              newGems += 120;
+              break;
+          case 'GEMS_LARGE':
+              newGems += 250;
+              break;
+          case 'GEMS_HUGE':
+              newGems += 500;
+              break;
+
+          case 'UNIT_INFANTRY':
+              extraUnits.push(UnitType.INFANTRY);
+              break;
+          case 'UNIT_ARCHER':
+              extraUnits.push(UnitType.ARCHER);
+              break;
+          case 'UNIT_SHIELD':
+              extraUnits.push(UnitType.SHIELD);
+              break;
+          case 'UNIT_SPEAR':
+              extraUnits.push(UnitType.SPEAR);
+              break;
+
+          default:
+              // Handle Dynamic IDs (Upgrades)
+              if (rewardId.startsWith('UPGRADE_')) {
+                  const type = rewardId.replace('UPGRADE_', '') as UnitType;
+                  if (!currentUpgrades.includes(type)) {
+                      currentUpgrades.push(type);
+                  }
+              }
+              break;
       }
     });
 
@@ -136,6 +264,7 @@ export const applyRewardsAndRestoreArmy = (
     const typeCounts: Record<string, number> = {};
     const restoredSoldiers: UnitType[] = [];
 
+    // A. Restore Survivors up to limit
     for (const unit of soldiersToProcess) {
        const currentCount = typeCounts[unit] || 0;
        if (currentCount < perUnitLimit) {
@@ -143,6 +272,11 @@ export const applyRewardsAndRestoreArmy = (
            typeCounts[unit] = currentCount + 1;
        }
     }
+
+    // B. Add "Extra" Units from Rewards (Bypassing limit check or adding on top?)
+    // Design Choice: Extra units from rewards are added on top of the restored army.
+    // They help fill out the roster even if you are at the cap, or push you over slightly for one round.
+    restoredSoldiers.push(...extraUnits);
 
     const nextLevel = prevState.currentLevel + 1;
 
@@ -154,6 +288,8 @@ export const applyRewardsAndRestoreArmy = (
       commanderMoveRange: newMoveRange,
       remodelLevel: newRemodelLevel,
       armyLimitBonus: newArmyLimitBonus,
+      rewardOptionsCount: newRewardOptionsCount,
+      blockCommonRewards: newBlockCommonRewards,
       upgrades: currentUpgrades,
       rewardsHistory: newHistory,
       currentLevel: nextLevel,

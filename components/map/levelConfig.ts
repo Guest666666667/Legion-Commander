@@ -14,8 +14,8 @@ export const GAME_LEVELS: LevelConfig[] = [
   { 
     // Level 1: Basic Melee + Range
     difficultyMult: 1.0, 
-    unitCounts: { [UnitType.INFANTRY]: 2, [UnitType.ARCHER]: 1 }, 
-    enemyCommanders: [UnitType.COMMANDER_ELF] 
+    unitCounts: { [UnitType.INFANTRY]: 1, [UnitType.ARCHER]: 1 }, 
+    enemyCommanders: [] 
   },
   { 
     // Level 2

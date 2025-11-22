@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Play, Pause, Flag, Backpack, X } from 'lucide-react';
+import { Play, Pause, Flag, Backpack, X, Diamond } from 'lucide-react';
 import { REWARD_DEFINITIONS } from '../rewards/rewardConfig';
 
 // --- BATTLE CONTROLS ---
@@ -10,6 +10,7 @@ interface BattleControlsProps {
     speedMultiplier: number;
     showBuffs: boolean;
     hasSelectedEntity: boolean;
+    gems: number; // New prop
     onTogglePause: () => void;
     onToggleSpeed: () => void;
     onSurrender: () => void;
@@ -17,7 +18,7 @@ interface BattleControlsProps {
 }
 
 export const BattleControls: React.FC<BattleControlsProps> = ({
-    isPaused, speedMultiplier, showBuffs, hasSelectedEntity,
+    isPaused, speedMultiplier, showBuffs, hasSelectedEntity, gems,
     onTogglePause, onToggleSpeed, onSurrender, onToggleBuffs
 }) => {
     return (
@@ -55,21 +56,22 @@ export const BattleControls: React.FC<BattleControlsProps> = ({
 
 interface BattleBuffsModalProps {
     rewardsHistory: Record<string, number>;
+    gems: number;
     onClose: () => void;
 }
 
-export const BattleBuffsModal: React.FC<BattleBuffsModalProps> = ({ rewardsHistory, onClose }) => {
+export const BattleBuffsModal: React.FC<BattleBuffsModalProps> = ({ rewardsHistory, gems, onClose }) => {
     const ownedRewards = Object.entries(rewardsHistory)
         .map(([id, count]) => ({ id, count: count as number, def: REWARD_DEFINITIONS[id] }))
-        .filter(item => item.def);
+        .filter(item => item.def && !item.def.noInventory);
 
     return (
         <div className="absolute inset-0 z-[60] flex items-center justify-center p-8" onClick={onClose}>
             <div className="bg-slate-800 border-2 border-slate-600 rounded-xl p-4 shadow-2xl max-w-xs w-full relative animate-fade-in" onClick={(e) => e.stopPropagation()}>
                 <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-700">
-                    <div className="flex items-center gap-2">
-                        <Backpack size={18} className="text-yellow-500" />
-                        <span className="font-bold text-white uppercase">Current Gains</span>
+                    <div className="flex items-center gap-2 bg-black/40 px-3 py-1.5 rounded-full border border-slate-600">
+                        <Diamond size={14} className="text-cyan-400 fill-cyan-400" />
+                        <span className="font-mono font-bold text-cyan-300">{gems}</span>
                     </div>
                     <button onClick={onClose} className="text-slate-400 hover:text-white">
                         <X size={18} />
@@ -78,7 +80,7 @@ export const BattleBuffsModal: React.FC<BattleBuffsModalProps> = ({ rewardsHisto
                 
                 <div className="space-y-2 max-h-[50vh] overflow-y-auto">
                     {ownedRewards.length === 0 && (
-                        <p className="text-slate-500 text-sm text-center py-4 italic">No items collected yet.</p>
+                        <p className="text-slate-500 text-sm text-center py-4 italic">No active effects.</p>
                     )}
                     {ownedRewards.map(({ id, count, def }) => (
                         <div key={id} className="bg-slate-900/50 p-2 rounded border border-slate-700 flex items-center gap-3">

@@ -7,6 +7,7 @@ import {
   INITIAL_GRID_SIZE, LEVELS_PER_RUN, INITIAL_ARMY_CONFIG, SCORING
 } from './constants';
 import { LEVEL_STEPS } from './components/map/levelConfig';
+import { INITIAL_GEMS, INITIAL_MAX_REWARD_SELECTIONS, INITIAL_REWARD_OPTIONS_COUNT } from './components/rewards/rewardConfig';
 
 // Components
 import { StartScreen } from './components/screens/StartScreen';
@@ -27,16 +28,17 @@ const App: React.FC = () => {
     stepsRemaining: LEVEL_STEPS[0],
     reshufflesUsed: 0,
     summonQueue: [],
-    playerHp: 100,
     inventory: [],
     survivors: [],
     scavengerLevel: 0,
     commanderMoveRange: 1,
-    maxRewardSelections: 1,
-    gems: 100, // Initial Gems
+    maxRewardSelections: INITIAL_MAX_REWARD_SELECTIONS,
+    rewardOptionsCount: INITIAL_REWARD_OPTIONS_COUNT,
+    gems: INITIAL_GEMS, // Initial Gems from config
     upgrades: [],
     remodelLevel: 0,
     armyLimitBonus: 0, 
+    blockCommonRewards: false,
     currentRewardIds: [],
     rewardsHistory: {},
     scoreStats: { matches3: 0, matches4: 0, matches5: 0, reshuffles: 0, won: false, kills: {} },
@@ -64,14 +66,15 @@ const App: React.FC = () => {
       reshufflesUsed: 0,
       summonQueue: startingArmy, // Deploy Selected Commander + Config + Skill Units
       survivors: [],
-      playerHp: 100,
       scavengerLevel: 0,
       commanderMoveRange: 1,
-      maxRewardSelections: 1,
-      gems: 100,
+      maxRewardSelections: INITIAL_MAX_REWARD_SELECTIONS,
+      rewardOptionsCount: INITIAL_REWARD_OPTIONS_COUNT,
+      gems: INITIAL_GEMS,
       upgrades: [],
       remodelLevel: 0,
       armyLimitBonus: 0,
+      blockCommonRewards: false,
       currentRewardIds: [],
       rewardsHistory: {},
       scoreStats: { matches3: 0, matches4: 0, matches5: 0, reshuffles: 0, won: false, kills: {} },
@@ -187,16 +190,17 @@ const App: React.FC = () => {
         stepsRemaining: LEVEL_STEPS[0],
         reshufflesUsed: 0,
         summonQueue: [],
-        playerHp: 100,
         inventory: [],
         survivors: [],
         scavengerLevel: 0,
         commanderMoveRange: 1,
-        maxRewardSelections: 1,
-        gems: 100,
+        maxRewardSelections: INITIAL_MAX_REWARD_SELECTIONS,
+        rewardOptionsCount: INITIAL_REWARD_OPTIONS_COUNT,
+        gems: INITIAL_GEMS,
         upgrades: [],
         remodelLevel: 0,
         armyLimitBonus: 0,
+        blockCommonRewards: false,
         currentRewardIds: [],
         rewardsHistory: {},
         scoreStats: { matches3: 0, matches4: 0, matches5: 0, reshuffles: 0, won: false, kills: {} },
@@ -231,6 +235,7 @@ const App: React.FC = () => {
           onBattleEnd={handleBattleEnd}
           upgrades={gameState.upgrades}
           rewardsHistory={gameState.rewardsHistory}
+          gems={gameState.gems}
         />
       </div>
 

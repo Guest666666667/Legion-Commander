@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { BattleEntity, Phase, UnitType } from '../../types';
 import { UnitIcon } from '../units/UnitIcon';
@@ -17,6 +16,7 @@ interface BattleZoneProps {
   onBattleEnd: (victory: boolean, survivors?: UnitType[], kills?: Record<string, number>) => void;
   upgrades?: UnitType[];
   rewardsHistory: Record<string, number>;
+  gems: number;
 }
 
 export const BattleZone: React.FC<BattleZoneProps> = (props) => {
@@ -104,7 +104,7 @@ export const BattleZone: React.FC<BattleZoneProps> = (props) => {
            <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'linear-gradient(#444 1px, transparent 1px), linear-gradient(90deg, #444 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
            
            {projectiles.map(p => (
-               <div key={p.id} className="absolute w-4 h-2 text-yellow-300 z-30 pointer-events-none" style={{ left: `${p.x}%`, top: `${p.y}%`, transform: `translate(-50%, -50%) rotate(${p.rotation}deg)`, opacity: p.opacity ?? 1 }}>
+               <div key={p.id} className="absolute w-4 h-4 flex items-center justify-center text-yellow-300 z-[120] pointer-events-none" style={{ left: `${p.x}%`, top: `${p.y}%`, transform: `translate(-50%, -50%) rotate(${p.rotation}deg)`, opacity: p.opacity ?? 1 }}>
                    <MoveRight size={16} strokeWidth={3} />
                </div>
            ))}
@@ -187,7 +187,7 @@ export const BattleZone: React.FC<BattleZoneProps> = (props) => {
            })}
 
            {effects.map(fx => (
-               <div key={fx.id} className={`absolute z-40 pointer-events-none ${fx.type === 'SLASH' ? 'text-red-500 scale-150' : fx.type === 'HEAL' ? 'text-green-400' : 'text-yellow-200'}`} 
+               <div key={fx.id} className={`absolute z-[130] pointer-events-none ${fx.type === 'SLASH' ? 'text-red-500 scale-150' : fx.type === 'HEAL' ? 'text-green-400' : 'text-yellow-200'}`} 
                     style={{ left: `${fx.x}%`, top: `${fx.y}%`, transform: 'translate(-50%, -50%)' }}>
                     {fx.type === 'SLASH' ? <div className="animate-slash font-bold text-xl">/</div> : fx.type === 'HEAL' ? <div className="animate-float-up text-xs font-bold">+</div> : <Sparkles size={24} className="animate-ping" />}
                </div>
@@ -203,6 +203,7 @@ export const BattleZone: React.FC<BattleZoneProps> = (props) => {
             speedMultiplier={speedMultiplier}
             showBuffs={showBuffs}
             hasSelectedEntity={!!selectedEntity}
+            gems={props.gems}
             onTogglePause={togglePause}
             onToggleSpeed={toggleSpeed}
             onSurrender={handleSurrender}
@@ -213,6 +214,7 @@ export const BattleZone: React.FC<BattleZoneProps> = (props) => {
        {showBuffs && (
            <BattleBuffsModal 
                 rewardsHistory={props.rewardsHistory}
+                gems={props.gems}
                 onClose={handleCloseModal}
            />
        )}

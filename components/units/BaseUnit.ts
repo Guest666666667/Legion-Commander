@@ -250,7 +250,7 @@ export class BaseUnit implements BattleEntity {
                     x: this.x, y: this.y,
                     targetId: target.id,
                     damage: calculateDamage(this, target),
-                    speed: 0.08 * speedMultiplier,
+                    speed: 0.5 * speedMultiplier,
                     rotation: Math.atan2(target.y - this.y, target.x - this.x) * (180 / Math.PI)
                 });
             } else {

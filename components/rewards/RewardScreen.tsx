@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect } from 'react';
-import { CheckCircle, Info, ArrowRight, Diamond, Crown } from 'lucide-react';
+import { CheckCircle, ArrowRight, Diamond, Crown } from 'lucide-react';
 import { UnitType, Rarity } from '../../types';
 import { MAX_PER_UNIT_COUNT, SCORING } from '../../constants';
 import { UnitIcon } from '../units/UnitIcon';
@@ -22,7 +21,8 @@ interface RewardScreenProps {
 export const RewardScreen: React.FC<RewardScreenProps> = ({ 
     rewardIds, onSelect, freeSelections, currentGems, upgrades, rewardsHistory, survivors, roster, currentLevel 
 }) => {
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  // Change state to track INDICES instead of IDs to handle duplicate rewards independently
+  const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
   const [exiting, setExiting] = useState(false);
 
   // --- Gem Animation State ---
@@ -32,14 +32,10 @@ export const RewardScreen: React.FC<RewardScreenProps> = ({
   const [showGemBonus, setShowGemBonus] = useState(false);
 
   useEffect(() => {
-      // 1. Start: Show previous amount (handled by default state)
-      
-      // 2. Delay, then show the +Bonus indicator
       const timer1 = setTimeout(() => {
           setShowGemBonus(true);
       }, 500);
 
-      // 3. Delay, then update the main counter to total and hide bonus
       const timer2 = setTimeout(() => {
           setDisplayGems(currentGems);
           setShowGemBonus(false);
@@ -68,21 +64,26 @@ export const RewardScreen: React.FC<RewardScreenProps> = ({
       .sort((a, b) => 0);
 
   // --- Transaction Logic ---
-  const totalCost = calculateTransactionCost(selectedIds, freeSelections);
+  
+  // Helper to get IDs from indices
+  const getSelectedIds = (indices: number[]) => indices.map(i => rewardIds[i]);
+
+  const totalCost = calculateTransactionCost(getSelectedIds(selectedIndices), freeSelections);
   const canAfford = currentGems >= totalCost;
-  const isAffordable = (id: string) => {
-      // Check if adding this item would exceed budget
-      if (selectedIds.includes(id)) return true; // Already selected
-      const nextIds = [...selectedIds, id];
-      const nextCost = calculateTransactionCost(nextIds, freeSelections);
+  
+  const isAffordable = (indexToCheck: number) => {
+      if (selectedIndices.includes(indexToCheck)) return true; // Already selected
+      
+      const nextIndices = [...selectedIndices, indexToCheck];
+      const nextCost = calculateTransactionCost(getSelectedIds(nextIndices), freeSelections);
       return currentGems >= nextCost;
   };
 
-  const toggleSelection = (id: string) => {
-    if (selectedIds.includes(id)) {
-      setSelectedIds(prev => prev.filter(sid => sid !== id));
+  const toggleSelection = (index: number) => {
+    if (selectedIndices.includes(index)) {
+      setSelectedIndices(prev => prev.filter(i => i !== index));
     } else {
-      setSelectedIds(prev => [...prev, id]);
+      setSelectedIndices(prev => [...prev, index]);
     }
   };
 
@@ -90,7 +91,7 @@ export const RewardScreen: React.FC<RewardScreenProps> = ({
     if (canAfford) {
       setExiting(true);
       setTimeout(() => {
-          onSelect(selectedIds);
+          onSelect(getSelectedIds(selectedIndices));
       }, 400);
     }
   };
@@ -111,13 +112,23 @@ export const RewardScreen: React.FC<RewardScreenProps> = ({
       }
   };
 
-  const selectedRewards = selectedIds.map(id => REWARD_DEFINITIONS[id]).filter(Boolean);
+  const selectedRewards = getSelectedIds(selectedIndices).map(id => REWARD_DEFINITIONS[id]).filter(Boolean);
   
-  // Logic: "Highest cost is free".
-  const sortedSelection = [...selectedIds].sort((a, b) => (REWARD_DEFINITIONS[b].cost || 0) - (REWARD_DEFINITIONS[a].cost || 0));
-  const freeIds = sortedSelection.slice(0, freeSelections);
+  // Logic: "Lowest cost is free".
+  // We need to find WHICH indices are free.
+  // 1. Create objects { index, cost } for all selected items
+  const selectionMeta = selectedIndices.map(i => ({
+      index: i,
+      cost: REWARD_DEFINITIONS[rewardIds[i]]?.cost || 0
+  }));
   
-  const remainingFreePicks = Math.max(0, freeSelections - selectedIds.length);
+  // 2. Sort by cost ascending
+  selectionMeta.sort((a, b) => a.cost - b.cost);
+  
+  // 3. Take top N as free
+  const freeIndices = selectionMeta.slice(0, freeSelections).map(s => s.index);
+  
+  const remainingFreePicks = Math.max(0, freeSelections - selectedIndices.length);
 
   return (
     <div className="absolute inset-0 z-[50000] flex items-center justify-center bg-black/60 backdrop-blur-sm overflow-hidden">
@@ -154,12 +165,12 @@ export const RewardScreen: React.FC<RewardScreenProps> = ({
 
           {/* CONTENT */}
           <div className="p-4 flex flex-col items-center">
-              <div className="grid grid-cols-3 gap-3 w-full mb-4">
-                {rewardIds.map(id => {
+              <div className="flex flex-wrap justify-center gap-3 w-full mb-4">
+                {rewardIds.map((id, index) => {
                   const def = REWARD_DEFINITIONS[id];
                   if (!def) return null;
 
-                  const isSelected = selectedIds.includes(id);
+                  const isSelected = selectedIndices.includes(index);
                   const rarityStyle = RARITY_COLORS[def.rarity];
                   
                   // Determine logic validity
@@ -168,26 +179,24 @@ export const RewardScreen: React.FC<RewardScreenProps> = ({
                       const type = id.replace('UPGRADE_', '') as UnitType;
                       if (upgrades.includes(type)) isValidLogic = false;
                   } else if (id === 'GREED') {
-                      if ((rewardsHistory['GREED'] || 0) >= 1) isValidLogic = false;
+                      if ((rewardsHistory['GREED'] || 0) >= 2) isValidLogic = false;
                   } else if (id === 'EXPAND') {
                       if ((rewardsHistory['EXPAND'] || 0) >= 2) isValidLogic = false;
                   }
                   
-                  const affordable = isAffordable(id);
+                  const affordable = isAffordable(index);
                   const isDisabled = !isValidLogic || (!isSelected && !affordable);
                   
                   // Determine Cost Display
-                  // If selected and in freeIds, it shows "FREE"
-                  // Else shows Cost
-                  const isFreePick = isSelected && freeIds.includes(id);
+                  const isFreePick = isSelected && freeIndices.includes(index);
                   
                   return (
                     <button
-                      key={id}
-                      onClick={() => !isDisabled && toggleSelection(id)}
+                      key={`${id}-${index}`}
+                      onClick={() => !isDisabled && toggleSelection(index)}
                       disabled={isDisabled}
                       className={`
-                        flex flex-col items-center justify-center p-2 rounded-xl border-2 transition-all duration-200 aspect-square relative group
+                        w-[30%] flex flex-col items-center justify-center p-2 rounded-xl border-2 transition-all duration-200 aspect-square relative group
                         ${!isValidLogic 
                             ? 'opacity-30 grayscale cursor-not-allowed border-slate-800 bg-slate-950' 
                             : isSelected 
@@ -298,8 +307,8 @@ export const RewardScreen: React.FC<RewardScreenProps> = ({
 
                     {selectedRewards.length > 0 && (
                          <div className="space-y-1 mb-3">
-                            {selectedRewards.map((reward) => (
-                                <div key={reward.id} className="flex items-start gap-2 text-xs">
+                            {selectedRewards.map((reward, i) => (
+                                <div key={`${reward.id}-${i}`} className="flex items-start gap-2 text-xs">
                                     <span className={`font-bold shrink-0 ${RARITY_COLORS[reward.rarity]}`}>• {reward.label}:</span>
                                     <span className="text-slate-400 text-[10px]">{reward.desc}</span>
                                 </div>

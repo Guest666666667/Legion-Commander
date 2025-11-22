@@ -155,7 +155,6 @@ export interface GameState {
   stepsRemaining: number;
   reshufflesUsed: number; 
   summonQueue: UnitType[]; 
-  playerHp: number; 
   inventory: string[]; 
   survivors: UnitType[]; 
   
@@ -163,11 +162,15 @@ export interface GameState {
   scavengerLevel: number; 
   commanderMoveRange: number; 
   maxRewardSelections: number; // Number of "Free Picks"
+  rewardOptionsCount: number; // How many options are shown in reward screen
   gems: number; // Currency
   upgrades: UnitType[]; 
   remodelLevel: number; 
   armyLimitBonus: number; // Increases the MAX_PER_UNIT_COUNT
   
+  // Loot Tables
+  blockCommonRewards: boolean; // If true, Common rewards are removed from the pool
+
   // Reward Randomization
   currentRewardIds: string[];
   rewardsHistory: Record<string, number>; 
