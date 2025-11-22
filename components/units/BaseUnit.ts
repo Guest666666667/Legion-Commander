@@ -84,11 +84,40 @@ export class BaseUnit implements BattleEntity {
 
     /**
      * Adds a buff to this unit if it doesn't already have it.
-     * Automatically triggers stat recalculation on next tick.
+     * Automatically triggers stat recalculation and handles immediate effects (HP gain).
      */
     public addBuff(buffId: string) {
         if (!this.buffs.includes(buffId)) {
             this.buffs.push(buffId);
+
+            // Capture state before update
+            const oldMaxHp = this.maxHp;
+
+            // 1. Immediate Recalculation
+            // Ensure statsModifiers and MaxHP are updated instantly. 
+            // Critical for existing units receiving buffs mid-battle or from late-joining Commanders.
+            this.recalculateStats();
+
+            // 2. Handle "On Apply" effects (HP restoration/boost)
+            const mod = BUFF_CONFIG[buffId];
+            if (mod) {
+                let hpGain = 0;
+                
+                if (mod.hp !== undefined) {
+                    // Explicit HP boost from config (e.g. "Give 50 HP")
+                    hpGain = mod.hp;
+                } else {
+                    // Implicit HP boost: If MaxHP increased, increase Current HP by the same delta
+                    // so the unit effectively gains the "Buff Health" without appearing damaged.
+                    const maxHpDiff = this.maxHp - oldMaxHp;
+                    if (maxHpDiff > 0) hpGain = maxHpDiff;
+                }
+                
+                if (hpGain > 0) {
+                    // Apply gain, respecting the new MaxHP cap
+                    this.hp = Math.min(this.hp + hpGain, this.maxHp);
+                }
+            }
         }
     }
 

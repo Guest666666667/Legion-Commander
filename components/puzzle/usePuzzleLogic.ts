@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { GameState, GridItem, UnitType } from '../../types';
 import { generateInitialGrid, shuffleSoldiers, replaceMatchedItems, getMatches, isCommander, isSoldier, getCellsInRange, getManhattanDistance } from './puzzleUtils';
+import { RewardIDs } from '../rewards/rewardConfig';
 
 const RESHUFFLE_COST = 3;
 
@@ -74,7 +75,7 @@ export const usePuzzleLogic = ({ gameState, isLocked, onSummon, onMatch, onBattl
         let skillSummons: UnitType[] = [];
     
         // REINFORCE Logic: Recruit ALL soldiers within movement range
-        if (commander && gameState.rewardsHistory['REINFORCE']) {
+        if (commander && gameState.rewardsHistory[RewardIDs.REINFORCE]) {
             const range = gameState.commanderMoveRange || 1;
             const neighbors = getCellsInRange(commander, finalGrid, range);
             const soldierNeighbors = neighbors.filter(n => isSoldier(n.type));

@@ -127,10 +127,16 @@ export const useBattleLoop = ({ allies, level, phase, commanderUnitType, upgrade
                         1.0
                     );
 
-                    // 2. INSPECTION PHASE
-                    // Every existing unit on the field gets a chance to inspect the new recruit.
+                    // 2. INSPECTION PHASE (BIDIRECTIONAL)
+                    // Iterate through all units currently on the field.
                     nextEntities.forEach(existingUnit => {
+                        // A. Old Buffs New: Does the existing unit have an aura for the new recruit?
+                        // (e.g., Existing Warlord buffs new Infantry)
                         runAllyInspection(existingUnit, newUnit);
+
+                        // B. New Buffs Old: Does the new recruit have an aura for existing units?
+                        // (e.g., New Warlord from Rewards buffs existing Infantry survivors)
+                        runAllyInspection(newUnit, existingUnit);
                     });
                     
                     // 3. FINALIZE
@@ -200,9 +206,9 @@ export const useBattleLoop = ({ allies, level, phase, commanderUnitType, upgrade
                     setTimeout(() => {
                         setProjectiles([]);
                         setEffects([]);
-                        const survivorUnits = activePlayers
-                            .filter(p => !p.type.startsWith('COMMANDER_'))
-                            .map(p => p.type);
+                        // FIX: Send ALL surviving unit types. 
+                        // Previously filtered out Commanders, which caused Recruited Commanders to disappear.
+                        const survivorUnits = activePlayers.map(p => p.type);
                         onBattleEnd(true, survivorUnits, killsRef.current);
                     }, VICTORY_DELAY_MS);
                 } else if (activePlayers.length === 0 && activeEnemies.length === 0 && prevEnts.length > 0) {

@@ -3,10 +3,10 @@ import { UnitType } from './types';
 
 export const INITIAL_GRID_SIZE = 3;
 export const MAX_GRID_SIZE = 5;
-export const LEVELS_PER_RUN = 6;
+export const LEVELS_PER_RUN = 7;
 export const DEFAULT_SPEED_MULTIPLIER = 3;
 export const VICTORY_DELAY_MS = 2000;
-export const MAX_PER_UNIT_COUNT = 10; // Max number of units PER TYPE to carry over (e.g., max 6 Archers, max 6 Infantry)
+export const MAX_PER_UNIT_COUNT = 8; // Max number of units PER TYPE to carry over (e.g., max 6 Archers, max 6 Infantry)
 
 // DEBUG: Define units to spawn immediately with the Commander at game start
 export const INITIAL_ARMY_CONFIG: UnitType[] = [

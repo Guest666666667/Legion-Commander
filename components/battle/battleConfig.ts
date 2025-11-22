@@ -21,17 +21,17 @@ export const SPAWN_CONFIG = {
     DEFAULT: { base: 10, variance: 10 }
   },
   ENEMY: {
-    [UnitType.ARCHER]: { base: 90, variance: 6 },
-    [UnitType.INFANTRY]: { base: 85, variance: 8 },
+    [UnitType.ARCHER]: { base: 90, variance: 8 },
+    [UnitType.INFANTRY]: { base: 85, variance: 10 },
     [UnitType.SHIELD]: { base: 55, variance: 5 },
-    [UnitType.SPEAR]: { base: 80, variance: 8 },
+    [UnitType.SPEAR]: { base: 80, variance: 10 },
     
     // Commanders
-    [UnitType.COMMANDER_CENTURION]: { base: 75, variance: 6 },
-    [UnitType.COMMANDER_ELF]: { base: 85, variance: 6 },
-    [UnitType.COMMANDER_WARLORD]: { base: 70, variance: 6 },
-    [UnitType.COMMANDER_GUARDIAN]: { base: 60, variance: 6 },
-    [UnitType.COMMANDER_VANGUARD]: { base: 75, variance: 6 },
+    [UnitType.COMMANDER_CENTURION]: { base: 75, variance: 10 },
+    [UnitType.COMMANDER_ELF]: { base: 85, variance: 10 },
+    [UnitType.COMMANDER_WARLORD]: { base: 70, variance: 10 },
+    [UnitType.COMMANDER_GUARDIAN]: { base: 60, variance: 10 },
+    [UnitType.COMMANDER_VANGUARD]: { base: 75, variance: 10 },
 
     DEFAULT: { base: 85, variance: 10 }
   }

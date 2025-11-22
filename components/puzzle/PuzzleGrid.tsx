@@ -4,7 +4,6 @@ import { PuzzleControls, ReshuffleModal } from './PuzzleUI';
 import { PuzzleCell } from './PuzzleCell';
 import { usePuzzleLogic } from './usePuzzleLogic';
 import { isCommander } from './puzzleUtils';
-import { Diamond } from 'lucide-react';
 
 interface PuzzleGridProps {
   gameState: GameState;

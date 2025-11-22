@@ -1,15 +1,16 @@
+
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, ArrowRight, Diamond, Crown } from 'lucide-react';
 import { UnitType, Rarity } from '../../types';
 import { MAX_PER_UNIT_COUNT, SCORING } from '../../constants';
 import { UnitIcon } from '../units/UnitIcon';
-import { RARITY_COLORS, REWARD_DEFINITIONS } from './rewardConfig';
+import { RARITY_COLORS, REWARD_DEFINITIONS, RewardIDs } from './rewardConfig';
 import { calculateTransactionCost } from './rewardUtils';
 
 interface RewardScreenProps {
   rewardIds: string[];
   onSelect: (rewardIds: string[]) => void;
-  freeSelections: number; // Renamed from selectionsLeft
+  freeSelections: number; 
   currentGems: number;
   upgrades: UnitType[];
   rewardsHistory: Record<string, number>;
@@ -21,7 +22,6 @@ interface RewardScreenProps {
 export const RewardScreen: React.FC<RewardScreenProps> = ({ 
     rewardIds, onSelect, freeSelections, currentGems, upgrades, rewardsHistory, survivors, roster, currentLevel 
 }) => {
-  // Change state to track INDICES instead of IDs to handle duplicate rewards independently
   const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
   const [exiting, setExiting] = useState(false);
 
@@ -44,8 +44,7 @@ export const RewardScreen: React.FC<RewardScreenProps> = ({
       return () => { clearTimeout(timer1); clearTimeout(timer2); };
   }, [currentGems]);
 
-  // Calculate dynamic army limit
-  const limitBreakCount = rewardsHistory['LIMIT_BREAK'] || 0;
+  const limitBreakCount = rewardsHistory[RewardIDs.LIMIT_BREAK] || 0;
   const currentPerUnitLimit = MAX_PER_UNIT_COUNT + limitBreakCount;
 
   // Count logic
@@ -65,14 +64,13 @@ export const RewardScreen: React.FC<RewardScreenProps> = ({
 
   // --- Transaction Logic ---
   
-  // Helper to get IDs from indices
   const getSelectedIds = (indices: number[]) => indices.map(i => rewardIds[i]);
 
   const totalCost = calculateTransactionCost(getSelectedIds(selectedIndices), freeSelections);
   const canAfford = currentGems >= totalCost;
   
   const isAffordable = (indexToCheck: number) => {
-      if (selectedIndices.includes(indexToCheck)) return true; // Already selected
+      if (selectedIndices.includes(indexToCheck)) return true; 
       
       const nextIndices = [...selectedIndices, indexToCheck];
       const nextCost = calculateTransactionCost(getSelectedIds(nextIndices), freeSelections);
@@ -114,20 +112,14 @@ export const RewardScreen: React.FC<RewardScreenProps> = ({
 
   const selectedRewards = getSelectedIds(selectedIndices).map(id => REWARD_DEFINITIONS[id]).filter(Boolean);
   
-  // Logic: "Lowest cost is free".
-  // We need to find WHICH indices are free.
-  // 1. Create objects { index, cost } for all selected items
   const selectionMeta = selectedIndices.map(i => ({
       index: i,
       cost: REWARD_DEFINITIONS[rewardIds[i]]?.cost || 0
   }));
   
-  // 2. Sort by cost ascending
   selectionMeta.sort((a, b) => a.cost - b.cost);
   
-  // 3. Take top N as free
   const freeIndices = selectionMeta.slice(0, freeSelections).map(s => s.index);
-  
   const remainingFreePicks = Math.max(0, freeSelections - selectedIndices.length);
 
   return (
@@ -150,8 +142,6 @@ export const RewardScreen: React.FC<RewardScreenProps> = ({
                         <Diamond size={14} className="text-cyan-400 fill-cyan-400" />
                         <span className="font-mono font-bold text-cyan-300 min-w-[24px] text-right transition-all duration-300 relative">
                             {displayGems}
-                            
-                            {/* Floating Bonus Animation */}
                             {showGemBonus && (
                                 <span className="absolute top-0 right-0 translate-x-full ml-1 text-xs font-bold text-cyan-300 animate-float-up-fade whitespace-nowrap">
                                     +{winBonus}
@@ -173,21 +163,19 @@ export const RewardScreen: React.FC<RewardScreenProps> = ({
                   const isSelected = selectedIndices.includes(index);
                   const rarityStyle = RARITY_COLORS[def.rarity];
                   
-                  // Determine logic validity
+                  // Determine logic validity using Constants
                   let isValidLogic = true;
-                  if (id.startsWith('UPGRADE_')) {
-                      const type = id.replace('UPGRADE_', '') as UnitType;
+                  if (id.startsWith(RewardIDs.UPGRADE_PREFIX)) {
+                      const type = id.replace(RewardIDs.UPGRADE_PREFIX, '') as UnitType;
                       if (upgrades.includes(type)) isValidLogic = false;
-                  } else if (id === 'GREED') {
-                      if ((rewardsHistory['GREED'] || 0) >= 2) isValidLogic = false;
-                  } else if (id === 'EXPAND') {
-                      if ((rewardsHistory['EXPAND'] || 0) >= 2) isValidLogic = false;
+                  } else if (id === RewardIDs.GREED) {
+                      if ((rewardsHistory[RewardIDs.GREED] || 0) >= 2) isValidLogic = false;
+                  } else if (id === RewardIDs.EXPAND) {
+                      if ((rewardsHistory[RewardIDs.EXPAND] || 0) >= 2) isValidLogic = false;
                   }
                   
                   const affordable = isAffordable(index);
                   const isDisabled = !isValidLogic || (!isSelected && !affordable);
-                  
-                  // Determine Cost Display
                   const isFreePick = isSelected && freeIndices.includes(index);
                   
                   return (
@@ -207,22 +195,18 @@ export const RewardScreen: React.FC<RewardScreenProps> = ({
                         }
                       `}
                     >
-                      {/* Rarity Indicator (Icons) */}
                       <div className={`absolute top-1.5 right-1.5 flex gap-0.5 ${rarityStyle}`}>
                           {renderRarityIcons(def.rarity)}
                       </div>
 
-                      {/* Icon */}
                       <div className={`p-1.5 rounded-full mb-1 mt-2 ${isSelected ? rarityStyle.replace('border-', 'bg-').replace('text-', 'text-black ') : 'bg-slate-900 ' + rarityStyle}`}>
                         <def.icon size={24} strokeWidth={2} />
                       </div>
                       
-                      {/* Label */}
                       <span className={`font-bold text-[9px] uppercase text-center leading-tight mb-1 ${isSelected ? 'text-white' : 'text-slate-300'}`}>
                           {def.label}
                       </span>
                       
-                      {/* COST Badge */}
                       <div className={`px-1.5 py-0.5 rounded text-[9px] font-bold flex items-center gap-1 
                           ${isSelected 
                                 ? (isFreePick ? 'bg-green-500 text-black' : 'bg-cyan-900 text-cyan-200 border border-cyan-700')
@@ -244,10 +228,9 @@ export const RewardScreen: React.FC<RewardScreenProps> = ({
                 })}
               </div>
 
-              {/* FOOTER: Total & Confirm */}
+              {/* FOOTER */}
               <div className="w-full bg-slate-900/80 border border-slate-700 rounded-lg p-3">
                     <div className="flex justify-between items-end mb-3 text-sm border-b border-slate-800 pb-2">
-                        {/* Left Side: Army Restoration Bar */}
                         <div className="flex gap-1.5 flex-wrap max-w-[60%]">
                             {displayTypes.map((type) => {
                                 const rawTotal = rosterCounts[type] || 0;
@@ -284,9 +267,7 @@ export const RewardScreen: React.FC<RewardScreenProps> = ({
                             })}
                         </div>
 
-                        {/* Right Side: Stats */}
                         <div className="flex flex-col items-end gap-1 pl-2">
-                            {/* Free Picks Row */}
                             <div className="flex items-center gap-3">
                                 <span className="text-slate-500 font-bold text-[10px] uppercase">Free Picks</span>
                                 <span className={`font-black text-lg leading-none ${remainingFreePicks > 0 ? 'text-green-400' : 'text-slate-500'}`}>
@@ -294,7 +275,6 @@ export const RewardScreen: React.FC<RewardScreenProps> = ({
                                 </span>
                             </div>
 
-                            {/* Cost Row */}
                             <div className="flex items-center gap-3">
                                 <span className="text-slate-500 font-bold text-[10px] uppercase">Cost</span>
                                 <div className={`flex items-center gap-1.5 font-black text-lg leading-none ${canAfford ? 'text-cyan-300' : 'text-red-500'}`}>
